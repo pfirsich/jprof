@@ -14,12 +14,13 @@ function love.load()
     local nodeStack = {}
     for _, event in ipairs(data) do
         local top = nodeStack[#nodeStack]
-        local name, time, memory = unpack(event)
+        local name, time, memory, annotation = unpack(event)
         if name ~= "pop" then
             local node = {
                 name = name,
                 startTime = time,
                 memoryStart = memory,
+                annotation = annotation,
                 children = {},
             }
 
@@ -118,6 +119,15 @@ function flameGraphFuncs.memory(node, child)
     end
 end
 
+function getNodeString(node)
+    local str = ("- %f ms, mem delta: %d Bytes"):format(
+            node.deltaTime*1000, node.memoryDelta*1024)
+    if node.annotation then
+        str = ("(%s) "):format(node.annotation) .. str
+    end
+    return str
+end
+
 function renderSubGraph(node, x, y, width, graphFunc, center)
     --print(node.name, x, y, width)
 
@@ -143,8 +153,7 @@ function renderSubGraph(node, x, y, width, graphFunc, center)
     local ty = y - height/2 - font:getHeight()/2
     lg.print(node.name, tx, ty)
     lg.setColor(120, 120, 120, 255)
-    lg.print(("%f ms, mem delta: %d Bytes"):format(node.deltaTime*1000, node.memoryDelta*1024),
-        tx + font:getWidth(node.name) + 10, ty)
+    lg.print(getNodeString(node), tx + font:getWidth(node.name) + 10, ty)
     lg.setScissor()
 
     local widthThresh = 5
@@ -253,8 +262,7 @@ function love.draw()
     local hovered = renderSubGraph(currentFrame, 0, graphY - 40, winW,
         flameGraphFuncs[flameGraphType], flameGraphType == "memory" or not currentFrame.index)
     if hovered then
-        lg.print(("%s - %f ms, mem delta: %d Bytes"):format(hovered.name,
-            hovered.deltaTime*1000, hovered.memoryDelta*1024), 5, graphY - 35)
+        lg.print(hovered.name .. " " .. getNodeString(hovered), 5, graphY - 35)
     end
 end
 
