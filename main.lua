@@ -44,6 +44,7 @@ function love.load()
     frameDurMin, frameDurMax = math.huge, -math.huge
     memUsageMin, memUsageMax = math.huge, -math.huge
     memDeltaMin, memDeltaMax = math.huge, -math.huge
+    frameTimes = {}
     for _, frame in ipairs(frames) do
         frameDurMin = math.min(frameDurMin, frame.deltaTime)
         frameDurMax = math.max(frameDurMax, frame.deltaTime)
@@ -51,7 +52,13 @@ function love.load()
         memUsageMax = math.max(memUsageMax, frame.memoryEnd)
         memDeltaMin = math.min(memDeltaMin, frame.memoryDelta)
         memDeltaMax = math.max(memDeltaMax, frame.memoryDelta)
+        table.insert(frameTimes, frame.deltaTime)
     end
+
+    table.sort(frameTimes)
+    local margin = math.floor(0.1 * #frames)
+    frameDurMin = frameTimes[margin]
+    frameDurMax = frameTimes[#frames - margin]
 
     currentFrame = frames[1]
     flameGraphType = "time"
@@ -69,20 +76,19 @@ function love.load()
     memGraph = {}
     timeGraph = {}
     deltaMemGraph = {}
-    local subsamples = 1
+    graph = function(y)
+        return math.min(graphY + graphYRange, math.max(graphY, graphY + (1-y) * graphYRange))
+    end
     for i, frame in ipairs(frames) do
         local x = winW / (#frames - 1) * (i - 1)
         memGraph[#memGraph+1] = x
-        memGraph[#memGraph+1] = graphY + rescale(0, memUsageMax, frame.memoryEnd, graphYRange, 0)
+        memGraph[#memGraph+1] = graph(frame.memoryEnd / memUsageMax)
 
         deltaMemGraph[#deltaMemGraph+1] = x
-        deltaMemGraph[#deltaMemGraph+1] = graphY + rescale(memDeltaMin, memDeltaMax, frame.memoryDelta, graphYRange, 0)
+        deltaMemGraph[#deltaMemGraph+1] = graph((frame.memoryDelta - memDeltaMin) / (memDeltaMax - memDeltaMin))
 
-        local timeIndex = math.floor(i/subsamples)*2 + 1
-        timeGraph[timeIndex+0] = (timeGraph[timeIndex+0] or 0) + x/subsamples
-        local y = graphY + rescale(0, frameDurMax, frame.deltaTime, graphYRange, 0)
-        -- subsample with min (instead of average), so we don't lose the spikes
-        timeGraph[timeIndex+1] = math.min(timeGraph[timeIndex+1] or winH, y)
+        timeGraph[#timeGraph+1] = x
+        timeGraph[#timeGraph+1] = graph(frame.deltaTime / frameDurMax)
     end
 end
 
@@ -187,7 +193,7 @@ function love.draw()
 
     for i, frame in ipairs(frames) do
         local c = rescale(frameDurMin, frameDurMax, frame.deltaTime, 0, 255)
-        assert(c >= 0 and c <= 255)
+        c = math.min(255, math.max(0, c))
         lg.setColor(c, c, c, 255)
         local x, y = getFramePos(i) - width/2, winH - height - spacing
         lg.rectangle("fill", x, y, width, height - 5)
@@ -222,17 +228,21 @@ function love.draw()
     end
 
     lg.setColor(255, 0, 255, 255)
-    lg.print(("frame time (max: %f ms)"):format(frameDurMax*1000),
-        5, graphY + lg.getFont():getHeight())
+    lg.setLineWidth(1)
     lg.line(timeGraph)
 
     lg.setColor(0, 255, 0, 255)
-    lg.print(("memory usage (max: %d KB)"):format(memUsageMax), 5, graphY)
+    lg.setLineWidth(2)
     lg.line(memGraph)
 
     -- this graph is kind of confusing
     --lg.setColor(0, 100, 0, 255)
     --lg.line(deltaMemGraph)
+
+    lg.setColor(255, 255, 255, 255)
+    lg.print(("frame time (max: %f ms)"):format(frameDurMax*1000),
+        5, graphY + lg.getFont():getHeight())
+    lg.print(("memory usage (max: %d KB)"):format(memUsageMax), 5, graphY)
 
     -- render flame graph for current frame
     lg.setColor(255, 255, 255, 255)
