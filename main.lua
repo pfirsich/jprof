@@ -9,8 +9,8 @@ local winW, winH = lg.getDimensions()
 function love.load(arg)
     local identity, filename = arg[2], arg[3]
     if not identity or not filename then
-        print("Usage: love jprofViewer <identity> <filename>")
         love.event.quit()
+        print("Usage: love jprofViewer <identity> <filename>")
         return
     end
 
@@ -330,10 +330,9 @@ function addNode(intoNode, node)
     end
 end
 
--- just rescale times, because I care more about average times
--- and about total memory
 function rescaleNode(node, factor)
     node.deltaTime = node.deltaTime * factor
+    node.memoryDelta = node.memoryDelta * factor
     for _, child in ipairs(node.children) do
         rescaleNode(child, factor)
     end
