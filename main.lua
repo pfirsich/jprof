@@ -1,10 +1,18 @@
 msgpack = require "MessagePack"
 inspect = require "inspect"
 
-local lg = love.graphics
+lg = love.graphics
 
-love.window.maximize()
-local winW, winH = lg.getDimensions()
+-- layout constants (from bottom to top)
+frameOverviewHeight = 40
+graphHeightFactor = 0.3
+graphYOffset = frameOverviewHeight + 20
+infoLineHeight = 35
+nodeHeight = 40
+
+modeFont = lg.newFont(25)
+nodeFont = lg.newFont(18)
+graphFont = lg.newFont(12)
 
 function love.load(arg)
     local identity, filename = arg[2], arg[3]
@@ -17,9 +25,9 @@ function love.load(arg)
     love.filesystem.setIdentity(identity)
     local fileData, msg = love.filesystem.read(filename)
     assert(fileData, msg)
+    local data = msgpack.unpack(fileData)
 
     frames = {}
-    data = msgpack.unpack(fileData)
     local nodeStack = {}
     for _, event in ipairs(data) do
         local top = nodeStack[#nodeStack]
@@ -51,62 +59,52 @@ function love.load(arg)
         end
     end
 
+    -- determine frame and memory ranges
     frameDurMin, frameDurMax = math.huge, -math.huge
     memUsageMin, memUsageMax = math.huge, -math.huge
-    memDeltaMin, memDeltaMax = math.huge, -math.huge
-    frameTimes = {}
+    local frameTimes = {}
     for _, frame in ipairs(frames) do
         frameDurMin = math.min(frameDurMin, frame.deltaTime)
         frameDurMax = math.max(frameDurMax, frame.deltaTime)
         memUsageMin = math.min(memUsageMin, frame.memoryEnd)
         memUsageMax = math.max(memUsageMax, frame.memoryEnd)
-        memDeltaMin = math.min(memDeltaMin, frame.memoryDelta)
-        memDeltaMax = math.max(memDeltaMax, frame.memoryDelta)
         table.insert(frameTimes, frame.deltaTime)
     end
 
+    -- determine new min/max out of histogram
     table.sort(frameTimes)
     local margin = math.max(5, math.floor(0.005 * #frames))
     frameDurMin = frameTimes[margin]
     frameDurMax = frameTimes[#frames - margin]
 
+    --
     currentFrame = frames[1]
-    flameGraphType = "time"
+    flameGraphType = "time" -- so far: "time" or "memory"
 
-    modeFont = lg.newFont(25)
-    nodeFont = lg.newFont(18)
-    graphFont = lg.newFont(12)
+    -- some löve things
     lg.setLineJoin("none") -- lines freak out otherwise
     lg.setLineStyle("rough") -- lines are patchy otherwise
     love.keyboard.setKeyRepeat(true)
+    love.window.maximize()
 
     -- setup graphs
-    graphYRange = 200
-    graphY = winH - 50 - graphYRange
-    memGraph = {}
-    timeGraph = {}
-    deltaMemGraph = {}
-    graph = function(y)
-        return math.min(graphY + graphYRange, math.max(graphY, graphY + (1-y) * graphYRange))
-    end
-    for i, frame in ipairs(frames) do
-        local x = winW / (#frames - 1) * (i - 1)
-        memGraph[#memGraph+1] = x
-        memGraph[#memGraph+1] = graph(frame.memoryEnd / memUsageMax)
+    -- the non _draw-versions contain the graph data normalized (0-1)
+    -- and the _draw versions are updated before every draw with actual screen coordinates
+    memGraph, memGraph_draw = {}, {}
+    timeGraph, timeGraph_draw = {}, {}
 
-        deltaMemGraph[#deltaMemGraph+1] = x
-        deltaMemGraph[#deltaMemGraph+1] = graph((frame.memoryDelta - memDeltaMin) / (memDeltaMax - memDeltaMin))
+    for i, frame in ipairs(frames) do
+        local x = (i - 1) / (#frames - 1)
+        memGraph[#memGraph+1] = x
+        memGraph[#memGraph+1] = math.min(1, math.max(0, frame.memoryEnd / memUsageMax))
 
         timeGraph[#timeGraph+1] = x
-        timeGraph[#timeGraph+1] = graph(frame.deltaTime / frameDurMax)
+        timeGraph[#timeGraph+1] = math.min(1, math.max(0, frame.deltaTime / frameDurMax))
     end
-end
-
-function rescale(fromMin, fromMax, from, toMin, toMax)
-    return (from - fromMin) / (fromMax - fromMin) * (toMax - toMin) + toMin
 end
 
 flameGraphFuncs = {}
+
 function flameGraphFuncs.time(node, child)
     local x
     -- this will be false for averge frames for which we use center=true anyways
@@ -156,26 +154,25 @@ end
 function renderSubGraph(node, x, y, width, graphFunc, center)
     --print(node.name, x, y, width)
 
-    local spacing = 2
+    local border = 2
     local font = lg.getFont()
-    local height = math.floor(font:getHeight()*1.5)
 
     local hovered = nil
     local mx, my = love.mouse.getPosition()
-    if mx > x and mx < x + width and my > y - height and my < y then
+    if mx > x and mx < x + width and my > y - nodeHeight and my < y then
         hovered = node
         lg.setColor(255, 0, 0, 255)
-        lg.rectangle("fill", x, y - height, width, height)
+        lg.rectangle("fill", x, y - nodeHeight, width, nodeHeight)
     end
 
     lg.setColor(200, 200, 200, 255)
-    lg.rectangle("fill", x + spacing, y - height + spacing, width - spacing*2, height - spacing*2)
+    lg.rectangle("fill", x + border, y - nodeHeight + border, width - border*2, nodeHeight - border*2)
 
 
-    lg.setScissor(x + spacing, y - height + spacing, width - spacing*2, height - spacing*2)
+    lg.setScissor(x + border, y - nodeHeight + border, width - border*2, nodeHeight - border*2)
     lg.setColor(0, 0, 0, 255)
-    local tx = x + spacing + spacing
-    local ty = y - height/2 - font:getHeight()/2
+    local tx = x + border + border
+    local ty = y - nodeHeight/2 - font:getHeight()/2
     lg.print(node.name, tx, ty)
     lg.setColor(120, 120, 120, 255)
     lg.print(getNodeString(node), tx + font:getWidth(node.name) + 10, ty)
@@ -207,7 +204,7 @@ function renderSubGraph(node, x, y, width, graphFunc, center)
         end
 
         if childWidth >= widthThresh then
-            local childHover = renderSubGraph(child, childX, y - height, childWidth, graphFunc, center)
+            local childHover = renderSubGraph(child, childX, y - nodeHeight, childWidth, graphFunc, center)
             hovered = hovered or childHover
         end
     end
@@ -216,22 +213,36 @@ function renderSubGraph(node, x, y, width, graphFunc, center)
 end
 
 function getFramePos(i)
-    return winW / (#frames - 1) * (i - 1)
+    return lg.getWidth() / (#frames - 1) * (i - 1)
+end
+
+function getGraphCoords()
+    local winH = lg.getHeight()
+    local graphHeight = winH * graphHeightFactor
+    local graphY = winH - graphYOffset - graphHeight
+    return graphY, graphHeight
 end
 
 function love.draw()
+    local winW, winH = lg.getDimensions()
+
     -- render frame overview at the bottom
     local spacing = 1
+    if winW / #frames < 3 then
+        spacing = 0
+    end
     local width = (winW - spacing) / #frames - spacing
-    local height = 30
+    local vMargin = 5
 
     for i, frame in ipairs(frames) do
-        local c = rescale(frameDurMin, frameDurMax, frame.deltaTime, 0, 255)
+        local c = math.floor((frame.deltaTime - frameDurMin) / (frameDurMax - frameDurMin) * 255 + 0.5)
         c = math.min(255, math.max(0, c))
         lg.setColor(c, c, c, 255)
-        local x, y = getFramePos(i) - width/2, winH - height - spacing
-        lg.rectangle("fill", x, y, width, height - 5)
+        local x, y = getFramePos(i) - width/2, winH - frameOverviewHeight + vMargin
+        lg.rectangle("fill", x, y, width, frameOverviewHeight - vMargin*2)
     end
+
+    local graphY, graphHeight = getGraphCoords()
 
     if currentFrame.index then
         lg.setColor(255, 0, 0, 255)
@@ -247,28 +258,35 @@ function love.draw()
     lg.setFont(graphFont)
     lg.setColor(80, 80, 80, 255)
     lg.line(0, graphY, winW, graphY)
-    lg.line(0, graphY + graphYRange, winW, graphY + graphYRange)
+    lg.line(0, graphY + graphHeight, winW, graphY + graphHeight)
+
     local totalDur = frames[#frames].endTime - frames[1].startTime
-    local x = 0
-    local interval = 10
-    local pos = 0
-    while x < winW do
-        lg.print(tostring(pos), x, graphY)
-        lg.line(x, graphY, x, graphY + graphYRange)
-        pos = pos + interval
-        x = x + interval / totalDur * winW
+    local tickInterval = 10
+    local numTicks = math.floor(totalDur / tickInterval)
+    for i = 1, numTicks do
+        local x = tickInterval / totalDur * winW * (i - 1)
+        lg.print(tostring(tickInterval * (i - 1)), x, graphY)
+        lg.line(x, graphY, x, graphY + graphHeight)
+    end
+
+    for i = 1, #frames*2, 2 do
+        memGraph_draw[i+0] = memGraph[i+0] * winW
+        memGraph_draw[i+1] = graphY + (1 - memGraph[i+1]) * graphHeight
+
+        timeGraph_draw[i+0] = timeGraph[i+0] * winW
+        timeGraph_draw[i+1] = graphY + (1 - timeGraph[i+1]) * graphHeight
     end
 
     lg.setColor(255, 0, 255, 255)
     lg.setLineWidth(1)
-    lg.line(timeGraph)
+    lg.line(timeGraph_draw)
 
     lg.setColor(0, 255, 0, 255)
     lg.setLineWidth(2)
-    lg.line(memGraph)
+    lg.line(memGraph_draw)
 
     lg.setColor(255, 255, 255, 255)
-    local textY = graphY + graphYRange + 5
+    local textY = graphY + graphHeight + 5
     local frameText
     if currentFrame.index then
         frameText = ("frame %d"):format(currentFrame.index)
@@ -279,10 +297,6 @@ function love.draw()
     lg.print(frameText, 5, textY)
     local totalFramesText = ("total frames: %d"):format(#frames)
     lg.print(totalFramesText, winW - lg.getFont():getWidth(totalFramesText) - 5, textY)
-
-    -- this graph is kind of confusing
-    --lg.setColor(0, 100, 0, 255)
-    --lg.line(deltaMemGraph)
 
     lg.setColor(255, 255, 255, 255)
     lg.print(("frame time (max: %f ms)"):format(frameDurMax*1000),
@@ -295,10 +309,10 @@ function love.draw()
     lg.print("graph type: " .. flameGraphType, 5, 5)
     lg.setFont(nodeFont)
     -- do not order flame layers (just center) if either memory graph or average frame
-    local hovered = renderSubGraph(currentFrame, 0, graphY - 40, winW,
+    local hovered = renderSubGraph(currentFrame, 0, graphY - infoLineHeight, winW,
         flameGraphFuncs[flameGraphType], flameGraphType == "memory" or not currentFrame.index)
     if hovered then
-        lg.print(hovered.name .. " " .. getNodeString(hovered), 5, graphY - 35)
+        lg.print(hovered.name .. " " .. getNodeString(hovered), 5, graphY - infoLineHeight + 5)
     end
 end
 
@@ -380,12 +394,12 @@ function love.keypressed(key)
 end
 
 function pickFrame(x)
-    return frames[math.floor(x / winW * #frames) + 1]
+    return frames[math.floor(x / lg.getWidth() * #frames) + 1]
 end
 
 function love.mousepressed(x, y, button)
     local shift = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
-    if button == 1 and y > graphY then
+    if button == 1 and y > select(1, getGraphCoords()) then
         local frame = pickFrame(x)
         if shift then
             if currentFrame.index then
