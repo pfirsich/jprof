@@ -1,5 +1,4 @@
 msgpack = require "MessagePack"
-inspect = require "inspect"
 
 lg = love.graphics
 
@@ -386,10 +385,6 @@ function love.keypressed(key)
 
     if key == "space" then
         flameGraphType = flameGraphType == "time" and "memory" or "time"
-    end
-
-    if key == "return" then
-        print(inspect(currentFrame))
     end
 end
 
