@@ -129,11 +129,27 @@ function flameGraphFuncs.memory(node, child)
 end
 
 function getNodeString(node)
-    local str = ("- %f ms, mem delta: %d Bytes"):format(
-            node.deltaTime*1000, node.memoryDelta*1024)
+    local memStr = tostring(math.floor(node.memoryDelta*1024 + 0.5)) .. " B"
+    if node.memoryDelta >= 1.0 then
+        memStr = ("%.3f KB"):format(node.memoryDelta)
+    end
+    if node.memoryDelta >= 0 then
+        memStr = "+" .. memStr
+    else
+        memStr = "-" .. memStr
+    end
+
+    local str
+    if flameGraphType == "time" then
+        str = ("- %.4f ms, %s"):format(node.deltaTime*1000, memStr)
+    else
+        str = ("- %s, %.4f ms"):format(memStr, node.deltaTime*1000)
+    end
+
     if node.annotation then
         str = ("(%s) "):format(node.annotation) .. str
     end
+
     return str
 end
 
