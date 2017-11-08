@@ -26,7 +26,7 @@ end
 
 Then calling `prof.write("myfile.prof")` will save a file to your applications save directory using [fperrad/lua-MessagePack](https://github.com/fperrad/lua-MessagePack), which you can analyze in the viewer:
 
-![Time mode](https://user-images.githubusercontent.com/2214632/32566609-c3b96d40-c4b8-11e7-9aa5-1c77acf04595.png)
+![Time mode](https://user-images.githubusercontent.com/2214632/32568512-c2a04ec8-c4be-11e7-8964-cda8d96f4e9e.png)
 
 ![Memory mode](https://user-images.githubusercontent.com/2214632/32566607-c39c648e-c4b8-11e7-88a5-a6f5d17d6b2c.png)
 
