@@ -62,7 +62,7 @@ if PROF_CAPTURE then
     end
 
     function profiler.write(filename)
-        assert(#zoneStack == 0, "(jprof) Zone stack is not empty not empty")
+        assert(#zoneStack == 0, "(jprof) Zone stack is not empty")
 
         local file, msg = lf.newFile(filename, "w")
         assert(file, msg)
