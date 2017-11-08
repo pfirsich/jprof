@@ -249,16 +249,14 @@ function love.draw()
     lg.line(0, graphY, winW, graphY)
     lg.line(0, graphY + graphYRange, winW, graphY + graphYRange)
     local totalDur = frames[#frames].endTime - frames[1].startTime
-    local interval = math.floor(totalDur / 10)
-    local lastSec = 0
-    for i, frame in ipairs(frames) do
-        local x = getFramePos(i)
-        local sec = math.floor(frame.startTime - frames[1].startTime)
-        if sec ~= lastSec and sec % interval == 0 then
-            lg.print(tostring(sec), x, graphY)
-            lg.line(x, graphY, x, graphY + graphYRange)
-        end
-        lastSec = sec
+    local x = 0
+    local interval = 10
+    local pos = 0
+    while x < winW do
+        lg.print(tostring(pos), x, graphY)
+        lg.line(x, graphY, x, graphY + graphYRange)
+        pos = pos + interval
+        x = x + interval / totalDur * winW
     end
 
     lg.setColor(255, 0, 255, 255)
@@ -268,6 +266,19 @@ function love.draw()
     lg.setColor(0, 255, 0, 255)
     lg.setLineWidth(2)
     lg.line(memGraph)
+
+    lg.setColor(255, 255, 255, 255)
+    local textY = graphY + graphYRange + 5
+    local frameText
+    if currentFrame.index then
+        frameText = ("frame %d"):format(currentFrame.index)
+    else
+        frameText = ("frame %d - frame %d (%d frames)"):format(
+            currentFrame.fromIndex, currentFrame.toIndex, currentFrame.toIndex - currentFrame.fromIndex + 1)
+    end
+    lg.print(frameText, 5, textY)
+    local totalFramesText = ("total frames: %d"):format(#frames)
+    lg.print(totalFramesText, winW - lg.getFont():getWidth(totalFramesText) - 5, textY)
 
     -- this graph is kind of confusing
     --lg.setColor(0, 100, 0, 255)
