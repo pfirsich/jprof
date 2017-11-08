@@ -1,15 +1,24 @@
-lf = love.filesystem
-lg = love.graphics
-
 msgpack = require "MessagePack"
 inspect = require "inspect"
 
-winW, winH = lg.getDimensions()
+local lg = love.graphics
 
-function love.load()
-    frames = {}
-    local fileData, msg = lf.read("bench.txt")
+love.window.maximize()
+local winW, winH = lg.getDimensions()
+
+function love.load(arg)
+    local identity, filename = arg[2], arg[3]
+    if not identity or not filename then
+        print("Usage: love jprofViewer <identity> <filename>")
+        love.event.quit()
+        return
+    end
+
+    love.filesystem.setIdentity(identity)
+    local fileData, msg = love.filesystem.read(filename)
     assert(fileData, msg)
+
+    frames = {}
     data = msgpack.unpack(fileData)
     local nodeStack = {}
     for _, event in ipairs(data) do

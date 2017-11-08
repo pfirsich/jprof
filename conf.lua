@@ -1,11 +1,11 @@
 function love.conf(t)
-    t.identity = "Into the Abyss"                    -- The name of the save directory (string)
+    t.identity = "jprof"                    -- The name of the save directory (string)
     t.version = "0.10.2"                -- The LÖVE version this game was made for (string)
     t.console = true -- Attach a console (boolean, Windows only)
     t.accelerometerjoystick = true      -- Enable the accelerometer on iOS and Android by exposing it as a Joystick (boolean)
     t.gammacorrect = false              -- Enable gamma-correct rendering, when supported by the system (boolean)
 
-    t.window.title = "BenchDraw"         -- The window title (string)
+    t.window.title = "jprofViewer"         -- The window title (string)
     t.window.icon = nil                 -- Filepath to an image to use as the window's icon (string)
     --t.window.width = 1366                -- The window width (number)
     t.window.width = 1600                -- The window width (number)
