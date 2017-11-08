@@ -66,7 +66,7 @@ function love.load(arg)
     end
 
     table.sort(frameTimes)
-    local margin = math.floor(0.1 * #frames)
+    local margin = math.max(5, math.floor(0.005 * #frames))
     frameDurMin = frameTimes[margin]
     frameDurMax = frameTimes[#frames - margin]
 
