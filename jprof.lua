@@ -1,9 +1,10 @@
 -- https://github.com/pfirsich/jprof
 
+_prefix = (...):match("(.+%.)[^%.]+$") or ""
 -- we need to make sure we have our own instance, so we can adjust settings
 local msgpack_old = package.loaded["MessagePack"]
 package.loaded["MessagePack"] = nil
-local msgpack = require "MessagePack"
+local msgpack = require(_prefix .."MessagePack")
 package.loaded["MessagePack"] = msgpack_old
 
 -- We need to make sure the number format is "double", so our timestamps have enough accuracy.
