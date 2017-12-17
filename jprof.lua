@@ -16,9 +16,19 @@ msgpack.set_number("double")
 
 local profiler = {}
 
-local zoneStack = {} -- this is just for assertions
+-- the zonestack is just for catching errors made using push/pop
+-- we preallocate 16 elements here (tested in interactive luajit interpreter v2.0.5)
+-- we do this, so table.insert/table.remove does have no (non-constant) impact on
+-- the memory consumption we determine using collectgarbage("count"))
+-- since no allocations/deallocations are triggered by them anymore
+local zoneStack = {nil, nil, nil, nil, nil, nil, nil, nil,
+                   nil, nil, nil, nil, nil, nil, nil, nil}
 local profData = {}
 local profEnabled = true
+-- profMem keeps track of the amount of memory allocated by prof.push/prof.pop
+-- which is then subtracted from collectgarbage("count"),
+-- to measure the jprof-less (i.e. "real") memory consumption
+local profMem = 0
 
 local function getByte(n, byte)
     return bit.rshift(bit.band(n, bit.lshift( 0xff, 8*byte )), 8*byte)
@@ -49,8 +59,11 @@ if PROF_CAPTURE then
     function profiler.push(name, annotation)
         if not profEnabled then return end
 
+        local preCount = collectgarbage("count") - profMem
         table.insert(zoneStack, name)
-        table.insert(profData, {name, love.timer.getTime(), collectgarbage("count"), annotation})
+        table.insert(profData, {name, love.timer.getTime(), preCount, annotation})
+        -- not simplified for readability's sake
+        profMem = profMem + ((collectgarbage("count") - profMem) - preCount)
     end
 
     function profiler.pop(name)
@@ -60,8 +73,10 @@ if PROF_CAPTURE then
             assert(zoneStack[#zoneStack] == name,
                 ("(jprof) Top of zone stack, does not match the zone passed to prof.pop ('%s', on top: '%s')!"):format(name, zoneStack[#zoneStack]))
         end
+        local preCount = collectgarbage("count") - profMem
         table.remove(zoneStack)
-        table.insert(profData, {"pop", love.timer.getTime(), collectgarbage("count")})
+        table.insert(profData, {"pop", love.timer.getTime(), preCount})
+        profMem = profMem + ((collectgarbage("count") - profMem) - preCount)
     end
 
     function profiler.write(filename)
