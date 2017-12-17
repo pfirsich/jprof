@@ -253,11 +253,24 @@ function love.draw()
         lg.rectangle("fill", x, graphY, endX - x, winH - graphY)
     end
 
+    local infoLine = nil
+
     -- render graphs
     lg.setFont(graphFont)
     lg.setColor(80, 80, 80, 255)
     lg.line(0, graphY, winW, graphY)
     lg.line(0, graphY + graphHeight, winW, graphY + graphHeight)
+
+    local mouseX, mouseY = love.mouse.getPosition()
+    if mouseY > graphY and mouseY < graphY + graphHeight then
+        local relY = (graphY + graphHeight - mouseY) / graphHeight
+
+        local frame = math.floor(mouseX / winW * (#frames - 1) + 1 + 0.5)
+        local duration = frames[frame].deltaTime
+        local memory = frames[frame].memoryEnd
+
+        infoLine = ("frame %d: %.4f ms, %.3f KB"):format(frame, duration, memory)
+    end
 
     local totalDur = frames[#frames].endTime - frames[1].startTime
     local tickInterval = 10
@@ -311,7 +324,11 @@ function love.draw()
     local hovered = renderSubGraph(currentFrame, 0, graphY - infoLineHeight, winW,
         flameGraphFuncs[flameGraphType], flameGraphType == "memory" or not currentFrame.index)
     if hovered then
-        lg.print(hovered.name .. " " .. getNodeString(hovered), 5, graphY - infoLineHeight + 5)
+        infoLine = hovered.name .. " " .. getNodeString(hovered)
+    end
+
+    if infoLine then
+        lg.print(infoLine, 5, graphY - infoLineHeight + 5)
     end
 end
 
