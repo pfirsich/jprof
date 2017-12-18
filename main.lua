@@ -410,8 +410,12 @@ function pickFrame(x)
 end
 
 function love.mousepressed(x, y, button)
+end
+
+function love.update()
     local shift = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
-    if button == 1 and y > select(1, getGraphCoords()) then
+    local x, y = love.mouse.getPosition()
+    if love.mouse.isDown(1) and y > select(1, getGraphCoords()) then
         local frame = pickFrame(x)
         if shift then
             if currentFrame.index then
