@@ -82,7 +82,7 @@ if PROF_CAPTURE then
     function profiler.write(filename)
         assert(#zoneStack == 0, "(jprof) Zone stack is not empty")
 
-        local file, msg = lf.newFile(filename, "w")
+        local file, msg = love.filesystem.newFile(filename, "w")
         assert(file, msg)
         msgpackListIntoFile(profData, file)
         file:close()
