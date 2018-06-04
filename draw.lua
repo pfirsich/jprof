@@ -13,7 +13,7 @@ function draw.getGraphCoords()
 end
 
 local fonts = {
-    mode = lg.newFont(25),
+    mode = lg.newFont(22),
     node = lg.newFont(18),
     graph = lg.newFont(12),
 }
@@ -236,7 +236,7 @@ function love.draw()
 
     -- render flame graph for current frame
     lg.setFont(fonts.mode)
-    lg.print("Graph Type: " .. flameGraphType, 5, 5)
+    lg.print("graph type: " .. flameGraphType, 5, 5)
     lg.setFont(fonts.node)
     -- do not order flame layers (just center) if either memory graph or average frame
     local hovered = renderSubGraph(frames.current, 0, graphY - const.infoLineHeight, winW,
