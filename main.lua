@@ -1,6 +1,6 @@
 msgpack = require "MessagePack"
 
-lg = love.graphics
+local lg = love.graphics
 
 -- layout constants (from bottom to top)
 frameOverviewHeight = 40
@@ -14,7 +14,7 @@ nodeFont = lg.newFont(18)
 graphFont = lg.newFont(12)
 
 function love.load(arg)
-    local identity, filename = arg[2], arg[3]
+    local identity, filename = arg[1], arg[2]
     if not identity or not filename then
         love.event.quit()
         print("Usage: love jprofViewer <identity> <filename>")
@@ -160,20 +160,20 @@ function renderSubGraph(node, x, y, width, graphFunc, center)
     local mx, my = love.mouse.getPosition()
     if mx > x and mx < x + width and my > y - nodeHeight and my < y then
         hovered = node
-        lg.setColor(255, 0, 0, 255)
+        lg.setColor(1.0, 0, 0)
         lg.rectangle("fill", x, y - nodeHeight, width, nodeHeight)
     end
 
-    lg.setColor(200, 200, 200, 255)
+    lg.setColor(0.75, 0.75, 0.75)
     lg.rectangle("fill", x + border, y - nodeHeight + border, width - border*2, nodeHeight - border*2)
 
 
     lg.setScissor(x + border, y - nodeHeight + border, width - border*2, nodeHeight - border*2)
-    lg.setColor(0, 0, 0, 255)
+    lg.setColor(0, 0, 0)
     local tx = x + border + border
     local ty = y - nodeHeight/2 - font:getHeight()/2
     lg.print(node.name, tx, ty)
-    lg.setColor(120, 120, 120, 255)
+    lg.setColor(0.45, 0.45, 0.45)
     lg.print(getNodeString(node), tx + font:getWidth(node.name) + 10, ty)
     lg.setScissor()
 
@@ -234,9 +234,9 @@ function love.draw()
     local vMargin = 5
 
     for i, frame in ipairs(frames) do
-        local c = math.floor((frame.deltaTime - frameDurMin) / (frameDurMax - frameDurMin) * 255 + 0.5)
-        c = math.min(255, math.max(0, c))
-        lg.setColor(c, c, c, 255)
+        local c = (frame.deltaTime - frameDurMin) / (frameDurMax - frameDurMin)
+        c = math.min(1.0, math.max(0.0, c))
+        lg.setColor(c, c, c)
         local x, y = getFramePos(i) - width/2, winH - frameOverviewHeight + vMargin
         lg.rectangle("fill", x, y, width, frameOverviewHeight - vMargin*2)
     end
@@ -244,11 +244,11 @@ function love.draw()
     local graphY, graphHeight = getGraphCoords()
 
     if currentFrame.index then
-        lg.setColor(255, 0, 0, 255)
+        lg.setColor(1, 0, 0)
         local x = getFramePos(currentFrame.index)
         lg.line(x, graphY, x, winH)
     else
-        lg.setColor(255, 0, 0, 50)
+        lg.setColor(1, 0, 0, 0.2)
         local x, endX = getFramePos(currentFrame.fromIndex), getFramePos(currentFrame.toIndex)
         lg.rectangle("fill", x, graphY, endX - x, winH - graphY)
     end
@@ -257,7 +257,7 @@ function love.draw()
 
     -- render graphs
     lg.setFont(graphFont)
-    lg.setColor(80, 80, 80, 255)
+    lg.setColor(0.3, 0.3, 0.3)
     lg.line(0, graphY, winW, graphY)
     lg.line(0, graphY + graphHeight, winW, graphY + graphHeight)
 
@@ -289,15 +289,15 @@ function love.draw()
         timeGraph_draw[i+1] = graphY + (1 - timeGraph[i+1]) * graphHeight
     end
 
-    lg.setColor(255, 0, 255, 255)
+    lg.setColor(1, 0, 1)
     lg.setLineWidth(1)
     lg.line(timeGraph_draw)
 
-    lg.setColor(0, 255, 0, 255)
+    lg.setColor(0, 1, 0)
     lg.setLineWidth(2)
     lg.line(memGraph_draw)
 
-    lg.setColor(255, 255, 255, 255)
+    lg.setColor(1, 1, 1)
     local textY = graphY + graphHeight + 5
     local frameText
     if currentFrame.index then
@@ -310,13 +310,13 @@ function love.draw()
     local totalFramesText = ("total frames: %d"):format(#frames)
     lg.print(totalFramesText, winW - lg.getFont():getWidth(totalFramesText) - 5, textY)
 
-    lg.setColor(255, 255, 255, 255)
+    lg.setColor(1, 1, 1)
     lg.print(("frame time (max: %f ms)"):format(frameDurMax*1000),
         5, graphY + lg.getFont():getHeight())
     lg.print(("memory usage (max: %d KB)"):format(memUsageMax), 5, graphY)
 
     -- render flame graph for current frame
-    lg.setColor(255, 255, 255, 255)
+    lg.setColor(1, 1, 1)
     lg.setFont(modeFont)
     lg.print("graph type: " .. flameGraphType, 5, 5)
     lg.setFont(nodeFont)
