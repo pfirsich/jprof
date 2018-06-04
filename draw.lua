@@ -179,7 +179,7 @@ function love.draw()
     lg.line(0, graphY + graphHeight, winW, graphY + graphHeight)
 
     local mouseX, mouseY = love.mouse.getPosition()
-    if mouseY > graphY and mouseY < graphY + graphHeight then
+    if mouseX > 0 and mouseX < winW and mouseY > graphY and mouseY < graphY + graphHeight then
         local relY = (graphY + graphHeight - mouseY) / graphHeight
 
         local frame = math.floor(mouseX / winW * (#frames - 1) + 1 + 0.5)
