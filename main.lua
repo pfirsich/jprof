@@ -9,8 +9,8 @@ local function buildGraph(data)
     local frames = {}
     local nodeStack = {}
     for _, event in ipairs(data) do
-        local top = nodeStack[#nodeStack]
         local name, time, memory, annotation = unpack(event)
+        local top = nodeStack[#nodeStack]
         if name ~= "pop" then
             local node = {
                 name = name,
@@ -21,15 +21,26 @@ local function buildGraph(data)
             }
 
             if name == "frame" then
-                assert(#nodeStack == 0)
+                if #nodeStack > 0 then
+                    error("Profiling data malformed: Pushed a new frame when the last one was not popped yet!")
+                end
+
                 node.index = #frames + 1
                 table.insert(frames, node)
             else
+                if not top then
+                    error("Profiling data malformed: Pushed a profiling zone without a 'frame' profiling zone on the stack!")
+                end
+
                 table.insert(top.children, node)
             end
 
             table.insert(nodeStack, node)
         else
+            if not top then
+                error("Profiling data malformed: Popped a profiling zone on an empty stack!")
+            end
+
             top.endTime = time + 1e-8
             top.deltaTime = top.endTime - top.startTime
             top.memoryEnd = memory
@@ -59,9 +70,7 @@ end
 function love.load(arg)
     local identity, filename = arg[1], arg[2]
     if not identity or not filename then
-        love.event.quit()
-        print("Usage: love jprofViewer <identity> <filename>")
-        return
+        error("Usage: love jprofViewer <identity> <filename>")
     end
 
     love.filesystem.setIdentity(identity)
@@ -70,6 +79,9 @@ function love.load(arg)
     local data = msgpack.unpack(fileData)
 
     frames = buildGraph(data)
+    if #frames == 0 then
+        error("Frame count in the capture is zero!")
+    end
 
     frames.minDeltaTime, frames.maxDeltaTime = getRange(frames, "deltaTime", 0.005, 5)
     frames.minMemUsage, frames.maxMemUsage = getRange(frames, "memoryEnd")
