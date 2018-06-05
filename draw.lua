@@ -5,6 +5,13 @@ local util = require("util")
 
 local draw = {}
 
+draw.graphMean = "max"
+draw.nextGraphMean = {
+    max = "arithmetic",
+    arithmetic = "harmonic",
+    harmonic = "max",
+}
+
 function draw.getGraphCoords()
     local winH = love.graphics.getHeight()
     local graphHeight = winH * const.graphHeightFactor
@@ -130,6 +137,13 @@ local function renderSubGraph(node, x, y, width, graphFunc, center)
     return hovered
 end
 
+local noticeText = lg.newText(fonts.mode, "")
+local noticeSent = 0
+function draw.notice(str)
+    noticeText:set(str)
+    noticeSent = love.timer.getTime()
+end
+
 local function getFramePos(i)
     return lg.getWidth() / (#frames - 1) * (i - 1)
 end
@@ -140,14 +154,25 @@ local graphs = {
     time = {},
 }
 
-function buildGraph(graph, frameKey, valueOffset, valueScale)
+function buildGraph(graph, frameKey, valueOffset, valueScale, mean)
     local x, w = 0, lg.getWidth()
     local y, h = draw.getGraphCoords()
 
-    for i, frame in ipairs(frames) do
-        graph[i*2-1+0] = x + (i - 1) / (#frames - 1) * w
-        local value = util.clamp((frame[frameKey] - valueOffset) / valueScale)
-        graph[i*2-1+1] = y + (1 - value) * h
+    local numPoints = math.min(#frames, lg.getWidth()*4)
+    local frameIndex = 1
+    local step = #frames / numPoints
+    for p = 1, numPoints do
+        local startIndex = math.floor(frameIndex)
+        local endIndex = math.floor(frameIndex + step - 1)
+        local accum = nil
+        local n = endIndex - startIndex + 1
+        for f = startIndex, endIndex do
+            accum = mean.add(accum,
+                util.clamp((frames[f][frameKey] - valueOffset) / valueScale))
+        end
+        frameIndex = frameIndex + step
+        graph[p*2-1+0] = x + (p - 1) / (numPoints - 1) * w
+        graph[p*2-1+1] = y + (1 - mean.mean(accum, n)) * h
     end
 end
 
@@ -160,6 +185,8 @@ function love.draw()
         return
     end
 
+    local mean = util.mean[draw.graphMean]
+
     -- render frame overview at the bottom
     local spacing = 1
     if winW / #frames < 3 then
@@ -168,12 +195,27 @@ function love.draw()
     local width = (winW - spacing) / #frames - spacing
     local vMargin = 5
 
-    for i, frame in ipairs(frames) do
-        local c = util.clamp((frame.deltaTime - frames.minDeltaTime) /
-            (frames.maxDeltaTime - frames.minDeltaTime))
+    local numLines = math.min(#frames, winW)
+    local lineWidth = winW / numLines
+    local frameIndex = 1
+    local step = #frames / numLines
+    for p = 1, numLines do
+        local startIndex = math.floor(frameIndex)
+        local endIndex = math.floor(frameIndex + step - 1)
+        local accum = nil
+        local n = endIndex - startIndex + 1
+        for f = startIndex, endIndex do
+            accum = mean.add(accum,
+                util.clamp((frames[f].deltaTime - frames.minDeltaTime) /
+                (frames.maxDeltaTime - frames.minDeltaTime)))
+        end
+        frameIndex = frameIndex + step
+
+        local x = lg.getWidth() / (numLines - 1) * (p - 1)
+        local y = winH - const.frameOverviewHeight + vMargin
+        local c = mean.mean(accum, n)
         lg.setColor(c, c, c)
-        local x, y = getFramePos(i) - width/2, winH - const.frameOverviewHeight + vMargin
-        lg.rectangle("fill", x, y, width, const.frameOverviewHeight - vMargin*2)
+        lg.rectangle("fill", x, y, lineWidth, const.frameOverviewHeight - vMargin*2)
     end
 
     local graphY, graphHeight = draw.getGraphCoords()
@@ -218,14 +260,14 @@ function love.draw()
     end
 
     if #frames > 1 then
-        buildGraph(graphs.time, "deltaTime", 0, frames.maxDeltaTime)
-        lg.setColor(const.timeGraphColor)
         lg.setLineWidth(1)
+        buildGraph(graphs.time, "deltaTime", 0, frames.maxDeltaTime, mean)
+        lg.setColor(const.timeGraphColor)
         lg.line(graphs.time)
 
-        buildGraph(graphs.mem, "memoryEnd", 0, frames.maxMemUsage)
-        lg.setColor(const.memGraphColor)
         lg.setLineWidth(2)
+        buildGraph(graphs.mem, "memoryEnd", 0, frames.maxMemUsage, mean)
+        lg.setColor(const.memGraphColor)
         lg.line(graphs.mem)
     end
 
@@ -260,6 +302,15 @@ function love.draw()
 
     if infoLine then
         lg.print(infoLine, 5, graphY - const.infoLineHeight + 5)
+    end
+
+    -- draw notice
+    local dt = love.timer.getTime() - noticeSent
+    if dt < const.noticeDuration then
+        local alpha = 1.0 - math.max(0, dt - const.noticeFadeoutAfter) /
+            (const.noticeDuration - const.noticeFadeoutAfter)
+        lg.setColor(1, 1, 1, alpha)
+        lg.draw(noticeText, winW - noticeText:getWidth() - 5, 5)
     end
 end
 

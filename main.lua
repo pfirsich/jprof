@@ -149,6 +149,11 @@ function love.keypressed(key)
     if key == "space" then
         flameGraphType = flameGraphType == "time" and "memory" or "time"
     end
+
+    if key == "rctrl" then
+        draw.graphMean = draw.nextGraphMean[draw.graphMean]
+        draw.notice("graph mean: " .. draw.graphMean)
+    end
 end
 
 local function pickFrameIndex(x)

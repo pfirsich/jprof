@@ -6,6 +6,9 @@ local const = {
     infoLineHeight = 35,
     nodeHeight = 40,
 
+    noticeDuration = 4,
+    noticeFadeoutAfter = 3,
+
     -- colors
     textColor = {1, 1, 1},
 
