@@ -77,7 +77,16 @@ if PROF_CAPTURE then
         local memCount = collectgarbage("count")
         table.insert(zoneStack, name)
         addEvent(name, love.timer.getTime(), memCount - profMem, annotation)
-        profMem = profMem + (collectgarbage("count") - memCount)
+
+        -- Usually keeping count of the memory used by jprof is easy, but when realtime profiling is used
+        -- netFlush also frees memory for garbage collection, which might happen at unknown points in time
+        -- therefore the memory measured is slightly less accurate when realtime profiling is used
+        -- if the full profiling data is not saved to profData, then only netBuffer will increase the
+        -- memory used by jprof and all of it will be freed for garbage collection at some point, so that
+        -- we should probably not try to keep track of it at all
+        if profData then
+            profMem = profMem + (collectgarbage("count") - memCount)
+        end
     end
 
     function profiler.pop(name)
@@ -94,10 +103,9 @@ if PROF_CAPTURE then
         if profiler.socket and #zoneStack == 0 then
             profiler.netFlush()
         end
-        -- Usually keeping count of the memory used by jprof is easy, but when realtime profiling is used
-        -- netFlush also frees memory for garbage collection, which might happen at unknown points in time
-        -- therefore the memory measured is slightly less accurate when realtime profiling is used
-        profMem = profMem + (collectgarbage("count") - memCount)
+        if profData then
+            profMem = profMem + (collectgarbage("count") - memCount)
+        end
     end
 
     function profiler.write(filename)
