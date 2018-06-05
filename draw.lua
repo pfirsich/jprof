@@ -134,13 +134,31 @@ local function getFramePos(i)
     return lg.getWidth() / (#frames - 1) * (i - 1)
 end
 
--- These are versions of the graphs in the graphs table, but with actual screen coordinates
--- So they can be passed to love.graphics.line, instead of normalized data
--- They are stored here so I don't have to create a couple of huge tables every draw
-local drawGraphs = {}
+-- the data to to be passed to love.graphics.line is saved here, so I don't create new tables all the time
+local graphs = {
+    mem = {},
+    time = {},
+}
+
+function buildGraph(graph, frameKey, valueOffset, valueScale)
+    local x, w = 0, lg.getWidth()
+    local y, h = draw.getGraphCoords()
+
+    for i, frame in ipairs(frames) do
+        graph[i*2-1+0] = x + (i - 1) / (#frames - 1) * w
+        local value = util.clamp((frame[frameKey] - valueOffset) / valueScale)
+        graph[i*2-1+1] = y + (1 - value) * h
+    end
+end
 
 function love.draw()
     local winW, winH = lg.getDimensions()
+
+    if #frames < 1 then
+        lg.setFont(fonts.mode)
+        lg.print("Waiting for frames..", 5, 5)
+        return
+    end
 
     -- render frame overview at the bottom
     local spacing = 1
@@ -166,7 +184,8 @@ function love.draw()
         lg.line(x, graphY, x, winH)
     else
         lg.setColor(const.frameSelectionColor)
-        local x, endX = getFramePos(frames.current.fromIndex), getFramePos(frames.current.toIndex)
+        local x = getFramePos(frames.current.fromIndex)
+        local endX = getFramePos(frames.current.toIndex)
         lg.rectangle("fill", x, graphY, endX - x, winH - graphY)
     end
 
@@ -198,23 +217,17 @@ function love.draw()
         lg.line(x, graphY, x, graphY + graphHeight)
     end
 
-    for graphName, graphData in pairs(graphs) do
-        if not drawGraphs[graphName] then
-            drawGraphs[graphName] = {}
-        end
-        for i = 1, #graphData, 2 do
-            drawGraphs[graphName][i+0] = graphData[i+0] * winW
-            drawGraphs[graphName][i+1] = graphY + (1 - graphData[i+1]) * graphHeight
-        end
+    if #frames > 1 then
+        buildGraph(graphs.time, "deltaTime", 0, frames.maxDeltaTime)
+        lg.setColor(const.timeGraphColor)
+        lg.setLineWidth(1)
+        lg.line(graphs.time)
+
+        buildGraph(graphs.mem, "memoryEnd", 0, frames.maxMemUsage)
+        lg.setColor(const.memGraphColor)
+        lg.setLineWidth(2)
+        lg.line(graphs.mem)
     end
-
-    lg.setColor(const.timeGraphColor)
-    lg.setLineWidth(1)
-    lg.line(drawGraphs.time)
-
-    lg.setColor(const.memGraphColor)
-    lg.setLineWidth(2)
-    lg.line(drawGraphs.mem)
 
     lg.setColor(const.textColor)
     local textY = graphY + graphHeight + 5

@@ -36,15 +36,15 @@ end
 
 local function getFrameAverage(frames, fromFrame, toFrame)
     local frame = {
-        fromIndex = fromFrame.index,
-        toIndex = toFrame.index,
+        fromIndex = fromFrame,
+        toIndex = toFrame,
         name = "frame",
         deltaTime = 0,
         memoryDelta = 0,
         children = {},
     }
 
-    for i = fromFrame.index, toFrame.index do
+    for i = fromFrame, toFrame do
         addNode(frame, frames[i])
     end
 

@@ -1,4 +1,6 @@
 local const = {
+    defaultPort = 1338,
+
     frameOverviewHeight = 40,
     graphHeightFactor = 0.3,
     infoLineHeight = 35,

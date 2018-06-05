@@ -1,9 +1,17 @@
+inspect = require("inspect") -- global on purpose, so debugging is easier
 local lg = love.graphics
 local msgpack = require "MessagePack"
 
 local draw = require("draw")
 local getFrameAverage = require("frameAverage")
 local util = require("util")
+local const = require("const")
+
+local netMsgBuffer = ""
+local netChannel = love.thread.newChannel()
+
+local deltaTimes = {}
+local memUsages = {}
 
 local function buildGraph(data)
     local frames = {}
@@ -51,40 +59,61 @@ local function buildGraph(data)
     return frames
 end
 
-local function getRange(frames, property, cutoffPercent, cutoffMin)
-    local values = {}
-    for _, frame in ipairs(frames) do
-        table.insert(values, frame[property])
+local function updateRange(newFrames, valueList, key, cutoffPercent, cutoffMin)
+    local i = 1
+    for _, frame in ipairs(newFrames) do
+        local value = frame[key]
+        while valueList[i] and valueList[i] < value do
+            i = i + 1
+        end
+        table.insert(valueList, i, value)
+        i = i + 1
     end
-    table.sort(values)
 
     local margin = 0
     if cutoffPercent then
         assert(cutoffMin)
         -- cut off the lowest and highest cutoffPercent of the values
-        margin = math.max(cutoffMin, math.floor(cutoffPercent * #values))
+        margin = math.max(cutoffMin, math.floor(cutoffPercent * #valueList))
     end
-    return values[1 + margin], values[#values - margin]
+    if cutoffMin and #valueList > cutoffMin * 5 then
+        return valueList[1 + margin], valueList[#valueList - margin]
+    else
+        return valueList[1], valueList[#valueList]
+    end
+end
+
+local function updateRanges(newFrames)
+    frames.minDeltaTime, frames.maxDeltaTime =
+        updateRange(newFrames, deltaTimes, "deltaTime", 0.005, 5)
+    frames.minMemUsage, frames.maxMemUsage =
+        updateRange(newFrames, memUsages, "memoryEnd")
 end
 
 function love.load(arg)
     local identity, filename = arg[1], arg[2]
-    if not identity or not filename then
-        error("Usage: love jprofViewer <identity> <filename>")
+    if identity == "listen" then
+        frames = {}
+
+        print("Waiting for connection...")
+        local netThread = love.thread.newThread("networkThread.lua")
+        netThread:start(netChannel, arg[2] and tonumber(arg[2]) or const.defaultPort)
+    elseif not identity or not filename then
+        print("Usage: love jprof <identity> <filename>\nor: love jprof listen [port]")
+        love.event.quit()
+        return
+    else
+        love.filesystem.setIdentity(identity)
+        local fileData, msg = love.filesystem.read(filename)
+        assert(fileData, msg)
+        local data = msgpack.unpack(fileData)
+        frames = buildGraph(data)
+        updateRanges(frames)
+
+        if #frames == 0 then
+            error("Frame count in the capture is zero!")
+        end
     end
-
-    love.filesystem.setIdentity(identity)
-    local fileData, msg = love.filesystem.read(filename)
-    assert(fileData, msg)
-    local data = msgpack.unpack(fileData)
-
-    frames = buildGraph(data)
-    if #frames == 0 then
-        error("Frame count in the capture is zero!")
-    end
-
-    frames.minDeltaTime, frames.maxDeltaTime = getRange(frames, "deltaTime", 0.005, 5)
-    frames.minMemUsage, frames.maxMemUsage = getRange(frames, "memoryEnd")
 
     frames.current = frames[1]
 
@@ -95,21 +124,6 @@ function love.load(arg)
     lg.setLineStyle("rough") -- lines are patchy otherwise
     love.keyboard.setKeyRepeat(true)
     love.window.maximize()
-
-    -- setup graphs
-    graphs = {
-        mem = {},
-        time = {},
-    }
-
-    for i, frame in ipairs(frames) do
-        local x = (i - 1) / (#frames - 1)
-        graphs.mem[#graphs.mem+1] = x
-        graphs.mem[#graphs.mem+1] = util.clamp(frame.memoryEnd / frames.maxMemUsage)
-
-        graphs.time[#graphs.time+1] = x
-        graphs.time[#graphs.time+1] = util.clamp(frame.deltaTime / frames.maxDeltaTime)
-    end
 end
 
 function love.keypressed(key)
@@ -130,27 +144,59 @@ function love.keypressed(key)
     end
 end
 
-local function pickFrame(x)
-    return frames[math.floor(x / lg.getWidth() * #frames) + 1]
+local function pickFrameIndex(x)
+    return math.floor(x / lg.getWidth() * #frames) + 1
 end
 
 function love.update()
     local shift = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
     local x, y = love.mouse.getPosition()
     if love.mouse.isDown(1) and y > select(1, draw.getGraphCoords()) then
-        local frame = pickFrame(x)
+        local frameIndex = pickFrameIndex(x)
         if shift then
             if frames.current.index then
-                frames.current = getFrameAverage(frames.current, frame)
+                frames.current = getFrameAverage(frames, frames.current.index, frameIndex)
             else
-                if frame.index > frames.current.fromIndex then
-                    frames.current = getFrameAverage(frames[frames.current.fromIndex], frame)
+                if frameIndex > frames.current.fromIndex then
+                    frames.current = getFrameAverage(frames, frames.current.fromIndex, frameIndex)
                 else
-                    frames.current = getFrameAverage(frame, frames[frames.current.toIndex])
+                    frames.current = getFrameAverage(frames, frameIndex, frames.current.toIndex)
                 end
             end
         else
-            frames.current = frame
+            frames.current = frames[frameIndex]
+        end
+    end
+
+    repeat
+        local netData = netChannel:pop()
+        if netData then
+            netMsgBuffer = netMsgBuffer .. netData
+        end
+    until netData == nil
+
+    local headerLen = 4
+    while netMsgBuffer:len() > headerLen do
+        local a, b, c, d = netMsgBuffer:byte(1, 4)
+        local len = d + 0x100 * (c + 0x100 * (b + 0x100 * a))
+
+        if netMsgBuffer:len() >= headerLen + len then
+            local msg = netMsgBuffer:sub(headerLen+1, headerLen+len)
+            netMsgBuffer = netMsgBuffer:sub(headerLen+len+1)
+            local data = msgpack.unpack(msg)
+
+            local newFrames = buildGraph(data)
+            for i, frame in ipairs(newFrames) do
+                table.insert(frames, frame)
+                frame.index = #frames
+            end
+            if frames.current == nil then
+                frames.current = frames[1]
+            end
+
+            updateRanges(newFrames)
+        else
+            break
         end
     end
 end
