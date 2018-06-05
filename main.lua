@@ -60,14 +60,21 @@ local function buildGraph(data)
 end
 
 local function updateRange(newFrames, valueList, key, cutoffPercent, cutoffMin)
-    local i = 1
-    for _, frame in ipairs(newFrames) do
-        local value = frame[key]
-        while valueList[i] and valueList[i] < value do
+    if #frames == 0 then
+        for _, frame in ipairs(newFrames) do
+            table.insert(valueList, frame[key])
+        end
+        table.sort(valueList)
+    else
+        for _, frame in ipairs(newFrames) do
+            local value = frame[key]
+            local i = 1
+            while valueList[i] and valueList[i] < value do
+                i = i + 1
+            end
+            table.insert(valueList, i, value)
             i = i + 1
         end
-        table.insert(valueList, i, value)
-        i = i + 1
     end
 
     local margin = 0
