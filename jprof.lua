@@ -25,7 +25,7 @@ local zoneStack = {nil, nil, nil, nil, nil, nil, nil, nil,
                    nil, nil, nil, nil, nil, nil, nil, nil}
 local profData = {}
 local netBuffer = nil
-local profEnabled = false
+local profEnabled = true
 -- profMem keeps track of the amount of memory allocated by prof.push/prof.pop
 -- which is then subtracted from collectgarbage("count"),
 -- to measure the jprof-less (i.e. "real") memory consumption
