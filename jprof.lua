@@ -76,7 +76,7 @@ if PROF_CAPTURE then
 
         local memCount = collectgarbage("count")
         table.insert(zoneStack, name)
-        addEvent(name, love.timer.getTime(), memCount - profMem, annotation)
+        addEvent(name, memCount - profMem, annotation)
 
         -- Usually keeping count of the memory used by jprof is easy, but when realtime profiling is used
         -- netFlush also frees memory for garbage collection, which might happen at unknown points in time
