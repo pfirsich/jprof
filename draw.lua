@@ -176,6 +176,20 @@ function buildGraph(graph, frameKey, valueOffset, valueScale, mean)
     end
 end
 
+local keyColor = {1, 1, 1}
+local helpColor = {0.8, 0.8, 0.8}
+local helpText = {
+    keyColor, "Left Click (graph area): ", helpColor, "Select a frame\n",
+    keyColor, "Shift + Left Click (graph area): ", helpColor, "Select a frame range\n\n",
+
+    keyColor, "Arrow Left/Right: ", helpColor, "Seek 1 frame left/right\n",
+    keyColor, "Ctrl + Arrow Left/Right: ", helpColor, "Seek 100 frames left/right\n\n",
+
+    keyColor, "Space: ", helpColor, "Switch between 'time' and 'memory' mode\n\n",
+
+    keyColor, "Alt: ", helpColor, "Cycle through graph averaging modes\n\n",
+}
+
 function love.draw()
     local winW, winH = lg.getDimensions()
 
@@ -311,6 +325,14 @@ function love.draw()
             (const.noticeDuration - const.noticeFadeoutAfter)
         lg.setColor(1, 1, 1, alpha)
         lg.draw(noticeText, winW - noticeText:getWidth() - 5, 5)
+    end
+
+    -- draw help overlay
+    if love.keyboard.isDown("h") or love.keyboard.isDown("f1") then
+        lg.setColor(0, 0, 0, 0.8)
+        lg.rectangle("fill", 0, 0, winW, winH)
+        lg.setColor(1, 1, 1)
+        lg.printf(helpText, 20, 20, winW - 40)
     end
 end
 

@@ -90,15 +90,18 @@ You may also pass an additional, optional argument to specify a port. The defaul
 
 *Note:* When realtime profiling is used, it is not as straightforward to keep track of the memory jprof is using itself, therefore the memory values returned by jprof will be slightly less accurate.
 
-### Controls
-You can seek frames with *left click*. If you hold *shift* while pressing *left click* the previously selected frame and the newly clicked frame will be averaged into a frame range, which is highly advised to find bottlenecks or get a general idea of memory development when you are not interested in a particular frame.
+### Notes
+Hold `F1` or `H` to show the help overlay.
 
-If a single frame is selected, you can additionally navigate using the *left and right arrow key* and skip 100 instead of 1 frame, if you also hold *ctrl*.
+When you select a frame range, it will be averaged. Most of the time this is what you want to look at rather than individual frames.
 
 If a single frame is selected the position of the zones in the flame graph will correspond to their relative position in time inside the frame, for averaged frames both in memory and time mode the zones will just be centered above their parent. Their size will still hold meaning though and empty space surrounding these zones implies that there was memory consumed/freed or time spent without being enclosed by a profiling zone.
 
-With the *space* key you can switch between memory and time mode, which will scale and position the zones inside the flame graph according to memory memory consumption changes or time duration respectively.
+The different modes (`memory` and `time`) determine whether the scale and position of the zones inside the flame graph will be derived from either memory consumption changes or time duration respectively.
 
 The purple graph displays the total duration of the frames over time and the green graph the total memory consumption over time.
 
-If you press *alt* you can cycle through the means used for averaging the graph/heatmap at the bottom. The `max mean` is most useful for finding spikes, which is the default. The `arithmetic mean` is what most people think of, when they think of an average. The `harmonic mean` is less sensitive to outliers and should be even smoother than the arithmetic mean.
+### Graph Averaging Modes
+* `max` mean is most useful for finding spikes. This is the default.
+* `arithmetic` mean is what most people think of, when they think of an average. This is less sensitive to spikes, but still somewhat.
+* `harmonic` mean is least sensitive to outliers and should be a bit smoother than the arithmetic mean.
