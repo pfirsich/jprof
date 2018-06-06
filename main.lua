@@ -1,4 +1,3 @@
-inspect = require("inspect") -- global on purpose, so debugging is easier
 local lg = love.graphics
 local msgpack = require "MessagePack"
 
