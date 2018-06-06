@@ -118,6 +118,7 @@ if PROF_CAPTURE then
             assert(file, msg)
             msgpackListIntoFile(profData, file)
             file:close()
+            print(("(jprof) Saved profiling data to '%s'"):format(filename))
         end
     end
 
