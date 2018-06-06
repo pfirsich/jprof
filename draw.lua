@@ -167,12 +167,14 @@ function buildGraph(graph, frameKey, valueOffset, valueScale, mean)
         local accum = nil
         local n = endIndex - startIndex + 1
         for f = startIndex, endIndex do
-            accum = mean.add(accum,
-                util.clamp((frames[f][frameKey] - valueOffset) / valueScale))
+            local node = util.getNodeByPath(frames[f], frames.drawRoot)
+            if node then
+                accum = mean.add(accum, util.clamp((node[frameKey] - valueOffset) / valueScale))
+            end
         end
         frameIndex = frameIndex + step
         graph[p*2-1+0] = x + (p - 1) / (numPoints - 1) * w
-        graph[p*2-1+1] = y + (1 - mean.mean(accum, n)) * h
+        graph[p*2-1+1] = y + (1 - (mean.mean(accum, n) or 0)) * h
     end
 end
 
@@ -308,10 +310,24 @@ function love.draw()
     lg.print("graph type: " .. flameGraphType, 5, 5)
     lg.setFont(fonts.node)
     -- do not order flame layers (just center) if either memory graph or average frame
-    local hovered = renderSubGraph(frames.current, 0, graphY - const.infoLineHeight, winW,
-        flameGraphFuncs[flameGraphType], flameGraphType == "memory" or not frames.current.index)
-    if hovered then
-        infoLine = hovered.name .. " " .. getNodeString(hovered)
+    local node = util.getNodeByPath(frames.current, frames.drawRoot)
+    if node then
+        local hovered = renderSubGraph(node, 0, graphY - const.infoLineHeight, winW,
+            flameGraphFuncs[flameGraphType],
+            flameGraphType == "memory" or not frames.current.index)
+        if hovered then
+            infoLine = hovered.name .. " " .. getNodeString(hovered)
+
+            local mouseDown = love.mouse.isDown(1)
+            if mouseDown and not lastMouseDown then
+                frames.drawRoot = hovered.path
+                draw.notice("new draw root: " .. util.nodePathToStr(hovered.path))
+            end
+            lastMouseDown = mouseDown
+        end
+    else
+        infoLine = ("This frame does not have a node with path '%s'"):format(
+            util.nodePathToStr(frames.drawRoot))
     end
 
     if infoLine then

@@ -13,6 +13,20 @@ local netChannel = love.thread.newChannel()
 local deltaTimes = {}
 local memUsages = {}
 
+local function getNodeCount(node)
+    assert(node.parent)
+    local counter = 1
+    for _, child in ipairs(node.parent.children) do
+        if child.name == node.name then
+            counter = counter + 1
+            if child == node then
+                break
+            end
+        end
+    end
+    return counter
+end
+
 local function buildGraph(data)
     local frames = {}
     local nodeStack = {}
@@ -25,8 +39,15 @@ local function buildGraph(data)
                 startTime = time,
                 memoryStart = memory,
                 annotation = annotation,
+                parent = top,
                 children = {},
             }
+            if top then
+                node.path = {unpack(top.path)}
+                table.insert(node.path, {node.name, getNodeCount(node)})
+            else
+                node.path = {}
+            end
 
             if name == "frame" then
                 if #nodeStack > 0 then
@@ -123,6 +144,7 @@ function love.load(arg)
     end
 
     frames.current = frames[1]
+    frames.drawRoot = {}
 
     flameGraphType = "time" -- so far: "time" or "memory"
 
@@ -159,6 +181,18 @@ end
 
 local function pickFrameIndex(x)
     return math.floor(x / lg.getWidth() * #frames) + 1
+end
+
+function love.mousepressed(x, y, button)
+    if button == 2 and y < select(1, draw.getGraphCoords()) then
+        local node = util.getNodeByPath(frames.current, frames.drawRoot)
+        if node and node.parent then
+            frames.drawRoot = node.parent.path
+        else
+            frames.drawRoot = {}
+        end
+        draw.notice("new draw root: " .. util.nodePathToStr(frames.drawRoot))
+    end
 end
 
 function love.update()
