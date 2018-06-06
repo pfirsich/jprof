@@ -5,123 +5,14 @@ local draw = require("draw")
 local getFrameAverage = require("frameAverage")
 local util = require("util")
 local const = require("const")
+local frames = require("frames")
 
 local netMsgBuffer = ""
 local netChannel = love.thread.newChannel()
 
-local deltaTimes = {}
-local memUsages = {}
-
-local function getNodeCount(node)
-    assert(node.parent)
-    local counter = 1
-    for _, child in ipairs(node.parent.children) do
-        if child.name == node.name then
-            counter = counter + 1
-            if child == node then
-                break
-            end
-        end
-    end
-    return counter
-end
-
-local function buildGraph(data)
-    local frames = {}
-    local nodeStack = {}
-    for _, event in ipairs(data) do
-        local name, time, memory, annotation = unpack(event)
-        local top = nodeStack[#nodeStack]
-        if name ~= "pop" then
-            local node = {
-                name = name,
-                startTime = time,
-                memoryStart = memory,
-                annotation = annotation,
-                parent = top,
-                children = {},
-            }
-            if top then
-                node.path = {unpack(top.path)}
-                table.insert(node.path, {node.name, getNodeCount(node)})
-            else
-                node.path = {}
-            end
-
-            if name == "frame" then
-                if #nodeStack > 0 then
-                    error("Profiling data malformed: Pushed a new frame when the last one was not popped yet!")
-                end
-
-                node.index = #frames + 1
-                table.insert(frames, node)
-            else
-                if not top then
-                    error("Profiling data malformed: Pushed a profiling zone without a 'frame' profiling zone on the stack!")
-                end
-
-                table.insert(top.children, node)
-            end
-
-            table.insert(nodeStack, node)
-        else
-            if not top then
-                error("Profiling data malformed: Popped a profiling zone on an empty stack!")
-            end
-
-            top.endTime = time + 1e-8
-            top.deltaTime = top.endTime - top.startTime
-            top.memoryEnd = memory
-            top.memoryDelta = top.memoryEnd - top.memoryStart
-            table.remove(nodeStack)
-        end
-    end
-    return frames
-end
-
-local function updateRange(newFrames, valueList, key, cutoffPercent, cutoffMin)
-    if #frames == 0 then
-        for _, frame in ipairs(newFrames) do
-            table.insert(valueList, frame[key])
-        end
-        table.sort(valueList)
-    else
-        for _, frame in ipairs(newFrames) do
-            local value = frame[key]
-            local i = 1
-            while valueList[i] and valueList[i] < value do
-                i = i + 1
-            end
-            table.insert(valueList, i, value)
-            i = i + 1
-        end
-    end
-
-    local margin = 0
-    if cutoffPercent then
-        assert(cutoffMin)
-        -- cut off the lowest and highest cutoffPercent of the values
-        margin = math.max(cutoffMin, math.floor(cutoffPercent * #valueList))
-    end
-    if cutoffMin and #valueList > cutoffMin * 5 then
-        return valueList[1 + margin], valueList[#valueList - margin]
-    else
-        return valueList[1], valueList[#valueList]
-    end
-end
-
-local function updateRanges(newFrames)
-    frames.minDeltaTime, frames.maxDeltaTime =
-        updateRange(newFrames, deltaTimes, "deltaTime", 0.005, 5)
-    frames.minMemUsage, frames.maxMemUsage =
-        updateRange(newFrames, memUsages, "memoryEnd")
-end
-
 function love.load(arg)
     local identity, filename = arg[1], arg[2]
     if identity == "listen" then
-        frames = {}
-
         print("Waiting for connection...")
         local netThread = love.thread.newThread("networkThread.lua")
         netThread:start(netChannel, arg[2] and tonumber(arg[2]) or const.defaultPort)
@@ -134,18 +25,13 @@ function love.load(arg)
         local fileData, msg = love.filesystem.read(filename)
         assert(fileData, msg)
         local data = msgpack.unpack(fileData)
-        frames = buildGraph(data)
-        updateRanges(frames)
+        frames.addFrames(data)
+        draw.updateGraphs()
 
         if #frames == 0 then
             error("Frame count in the capture is zero!")
         end
     end
-
-    frames.current = frames[1]
-    frames.drawRoot = {}
-
-    flameGraphType = "time" -- so far: "time" or "memory"
 
     -- some löve things
     lg.setLineJoin("none") -- lines freak out otherwise
@@ -154,22 +40,26 @@ function love.load(arg)
     love.window.maximize()
 end
 
-function love.keypressed(key)
-    local ctrl = love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")
+local function lrDown(key)
+    return love.keyboard.isDown("l" .. key) or love.keyboard.isDown("r" .. key)
+end
 
-    local delta = ctrl and 100 or 1
-    if key == "left" then
-        if frames.current.index then -- average frames don't have .index
-            frames.current = frames[math.max(1, frames.current.index - delta)]
-        end
-    elseif key == "right" then
-        if frames.current.index then -- average frames don't have .index
-            frames.current = frames[math.min(#frames, frames.current.index + delta)]
+function love.keypressed(key)
+    local delta = lrDown("ctrl") and 100 or 1
+    if frames.current then
+        if key == "left" then
+            if frames.current.index then -- average frames don't have .index
+                frames.current = frames[math.max(1, frames.current.index - delta)]
+            end
+        elseif key == "right" then
+            if frames.current.index then -- average frames don't have .index
+                frames.current = frames[math.min(#frames, frames.current.index + delta)]
+            end
         end
     end
 
     if key == "space" then
-        flameGraphType = flameGraphType == "time" and "memory" or "time"
+        draw.flameGraphType = draw.flameGraphType == "time" and "memory" or "time"
     end
 
     if key == "lalt" or key == "ralt" then
@@ -184,22 +74,19 @@ end
 
 function love.mousepressed(x, y, button)
     if button == 2 and y < select(1, draw.getGraphCoords()) then
-        local node = util.getNodeByPath(frames.current, frames.drawRoot)
-        if node and node.parent then
-            frames.drawRoot = node.parent.path
-        else
-            frames.drawRoot = {}
-        end
-        draw.notice("new draw root: " .. util.nodePathToStr(frames.drawRoot))
+        draw.popRootPath()
     end
 end
 
+function love.resize()
+    draw.updateGraphs()
+end
+
 function love.update()
-    local shift = love.keyboard.isDown("lshift") or love.keyboard.isDown("rshift")
     local x, y = love.mouse.getPosition()
     if love.mouse.isDown(1) and y > select(1, draw.getGraphCoords()) then
         local frameIndex = pickFrameIndex(x)
-        if shift then
+        if lrDown("shift") then
             if frames.current.index then
                 frames.current = getFrameAverage(frames, frames.current.index, frameIndex)
             else
@@ -230,17 +117,8 @@ function love.update()
             local msg = netMsgBuffer:sub(headerLen+1, headerLen+len)
             netMsgBuffer = netMsgBuffer:sub(headerLen+len+1)
             local data = msgpack.unpack(msg)
-
-            local newFrames = buildGraph(data)
-            for i, frame in ipairs(newFrames) do
-                table.insert(frames, frame)
-                frame.index = #frames
-            end
-            if frames.current == nil then
-                frames.current = frames[1]
-            end
-
-            updateRanges(newFrames)
+            frames.addFrames(data)
+            draw.updateGraphs()
         else
             break
         end

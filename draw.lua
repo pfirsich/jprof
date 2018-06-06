@@ -2,6 +2,7 @@ local lg = love.graphics
 
 local const = require("const")
 local util = require("util")
+local frames = require("frames")
 
 local draw = {}
 
@@ -12,6 +13,26 @@ draw.nextGraphMean = {
     harmonic = "max",
 }
 
+draw.flameGraphType = "time" -- so far: "time" or "memory"
+
+local rootPath = {}
+local rootPathHistory = {}
+
+local fonts = {
+    mode = lg.newFont(22),
+    node = lg.newFont(18),
+    graph = lg.newFont(12),
+}
+
+-- the data to to be passed to love.graphics.line is saved here, so I don't create new tables all the time
+local graphs = {
+    mem = {},
+    time = {},
+}
+
+local noticeText = lg.newText(fonts.mode, "")
+local noticeSent = 0
+
 local helpText
 do
     local L = const.helpTitleColor
@@ -21,7 +42,7 @@ do
         L, "Shift + Left Click (graph area):  ", R, "Select a frame range.\n\n",
 
         L, "Left Click (flame graph):  ", R, "Select a node as the new root node.\n",
-        L, "Right Click (flame graph):  ", R, "Select the parent of the current root node as the new root node. If not present in the frame, the whole frame is the new root node.\n\n",
+        L, "Right Click (flame graph):  ", R, "Return to the previous root node.\n\n",
 
         L, "Arrow Left/Right:  ", R, "Seek 1 frame left/right.\n",
         L, "Ctrl + Arrow Left/Right:  ", R, "Seek 100 frames left/right.\n\n",
@@ -31,19 +52,6 @@ do
         L, "Alt:  ", R, "Cycle through graph averaging modes.\n\n",
     }
 end
-
-function draw.getGraphCoords()
-    local winH = love.graphics.getHeight()
-    local graphHeight = winH * const.graphHeightFactor
-    local graphY = winH - const.graphYOffset - graphHeight
-    return graphY, graphHeight
-end
-
-local fonts = {
-    mode = lg.newFont(22),
-    node = lg.newFont(18),
-    graph = lg.newFont(12),
-}
 
 local flameGraphFuncs = {
     time = function(node, child)
@@ -80,7 +88,7 @@ local function getNodeString(node)
     end
 
     local str
-    if flameGraphType == "time" then
+    if draw.flameGraphType == "time" then
         str = ("- %.4f ms, %s"):format(node.deltaTime*1000, memStr)
     else
         str = ("- %s, %.4f ms"):format(memStr, node.deltaTime*1000)
@@ -157,24 +165,11 @@ local function renderSubGraph(node, x, y, width, graphFunc, center)
     return hovered
 end
 
-local noticeText = lg.newText(fonts.mode, "")
-local noticeSent = 0
-function draw.notice(str)
-    noticeText:set(str)
-    noticeSent = love.timer.getTime()
-end
-
 local function getFramePos(i)
     return lg.getWidth() / (#frames - 1) * (i - 1)
 end
 
--- the data to to be passed to love.graphics.line is saved here, so I don't create new tables all the time
-local graphs = {
-    mem = {},
-    time = {},
-}
-
-function buildGraph(graph, frameKey, valueOffset, valueScale, mean)
+local function buildGraph(graph, key, valueOffset, valueScale, mean, path)
     local x, w = 0, lg.getWidth()
     local y, h = draw.getGraphCoords()
 
@@ -187,14 +182,49 @@ function buildGraph(graph, frameKey, valueOffset, valueScale, mean)
         local accum = nil
         local n = endIndex - startIndex + 1
         for f = startIndex, endIndex do
-            local node = util.getNodeByPath(frames[f], frames.drawRoot)
+            local node = util.getNodeByPath(frames[f], path)
             if node then
-                accum = mean.add(accum, util.clamp((node[frameKey] - valueOffset) / valueScale))
+                accum = mean.add(accum, util.clamp((node[key] - valueOffset) / valueScale))
             end
         end
         frameIndex = frameIndex + step
         graph[p*2-1+0] = x + (p - 1) / (numPoints - 1) * w
         graph[p*2-1+1] = y + (1 - (mean.mean(accum, n) or 0)) * h
+    end
+end
+
+function draw.updateGraphs()
+    buildGraph(graphs.time, "deltaTime", 0, frames.maxDeltaTime, util.mean[draw.graphMean], rootPath)
+    buildGraph(graphs.mem, "memoryEnd", 0, frames.maxMemUsage, util.mean[draw.graphMean], rootPath)
+end
+
+function draw.getGraphCoords()
+    local winH = love.graphics.getHeight()
+    local graphHeight = winH * const.graphHeightFactor
+    local graphY = winH - const.graphYOffset - graphHeight
+    return graphY, graphHeight
+end
+
+function draw.notice(str)
+    noticeText:set(str)
+    noticeSent = love.timer.getTime()
+end
+
+local function setRootPath(path)
+    rootPath = path
+    draw.updateGraphs()
+    draw.notice("new draw root: " .. util.nodePathToStr(path))
+end
+
+function draw.pushRootPath(path)
+    table.insert(rootPathHistory, rootPath)
+    setRootPath(path)
+end
+
+function draw.popRootPath(path)
+    if #rootPathHistory > 0 then
+        setRootPath(rootPathHistory[#rootPathHistory])
+        table.remove(rootPathHistory)
     end
 end
 
@@ -283,12 +313,10 @@ function love.draw()
 
     if #frames > 1 then
         lg.setLineWidth(1)
-        buildGraph(graphs.time, "deltaTime", 0, frames.maxDeltaTime, mean)
         lg.setColor(const.timeGraphColor)
         lg.line(graphs.time)
 
         lg.setLineWidth(2)
-        buildGraph(graphs.mem, "memoryEnd", 0, frames.maxMemUsage, mean)
         lg.setColor(const.memGraphColor)
         lg.line(graphs.mem)
     end
@@ -313,27 +341,26 @@ function love.draw()
 
     -- render flame graph for current frame
     lg.setFont(fonts.mode)
-    lg.print("graph type: " .. flameGraphType, 5, 5)
+    lg.print("graph type: " .. draw.flameGraphType, 5, 5)
     lg.setFont(fonts.node)
     -- do not order flame layers (just center) if either memory graph or average frame
-    local node = util.getNodeByPath(frames.current, frames.drawRoot)
+    local node = util.getNodeByPath(frames.current, rootPath)
     if node then
         local hovered = renderSubGraph(node, 0, graphY - const.infoLineHeight, winW,
-            flameGraphFuncs[flameGraphType],
+            flameGraphFuncs[draw.flameGraphType],
             flameGraphType == "memory" or not frames.current.index)
         if hovered then
             infoLine = hovered.name .. " " .. getNodeString(hovered)
 
             local mouseDown = love.mouse.isDown(1)
             if mouseDown and not lastMouseDown then
-                frames.drawRoot = hovered.path
-                draw.notice("new draw root: " .. util.nodePathToStr(hovered.path))
+                draw.pushRootPath(hovered.path)
             end
             lastMouseDown = mouseDown
         end
     else
         infoLine = ("This frame does not have a node with path '%s'"):format(
-            util.nodePathToStr(frames.drawRoot))
+            util.nodePathToStr(rootPath))
     end
 
     if infoLine then
