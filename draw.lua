@@ -12,6 +12,26 @@ draw.nextGraphMean = {
     harmonic = "max",
 }
 
+local helpText
+do
+    local L = const.helpTitleColor
+    local R = const.helpColor
+    helpText = {
+        L, "Left Click (graph area):  ", R, "Select a frame.\n",
+        L, "Shift + Left Click (graph area):  ", R, "Select a frame range.\n\n",
+
+        L, "Left Click (flame graph):  ", R, "Select a node as the new root node.\n",
+        L, "Right Click (flame graph):  ", R, "Select the parent of the current root node as the new root node. If not present in the frame, the whole frame is the new root node.\n\n",
+
+        L, "Arrow Left/Right:  ", R, "Seek 1 frame left/right.\n",
+        L, "Ctrl + Arrow Left/Right:  ", R, "Seek 100 frames left/right.\n\n",
+
+        L, "Space:  ", R, "Switch between 'time' and 'memory' mode.\n\n",
+
+        L, "Alt:  ", R, "Cycle through graph averaging modes.\n\n",
+    }
+end
+
 function draw.getGraphCoords()
     local winH = love.graphics.getHeight()
     local graphHeight = winH * const.graphHeightFactor
@@ -178,20 +198,6 @@ function buildGraph(graph, frameKey, valueOffset, valueScale, mean)
     end
 end
 
-local keyColor = {1, 1, 1}
-local helpColor = {0.8, 0.8, 0.8}
-local helpText = {
-    keyColor, "Left Click (graph area): ", helpColor, "Select a frame\n",
-    keyColor, "Shift + Left Click (graph area): ", helpColor, "Select a frame range\n\n",
-
-    keyColor, "Arrow Left/Right: ", helpColor, "Seek 1 frame left/right\n",
-    keyColor, "Ctrl + Arrow Left/Right: ", helpColor, "Seek 100 frames left/right\n\n",
-
-    keyColor, "Space: ", helpColor, "Switch between 'time' and 'memory' mode\n\n",
-
-    keyColor, "Alt: ", helpColor, "Cycle through graph averaging modes\n\n",
-}
-
 function love.draw()
     local winW, winH = lg.getDimensions()
 
@@ -345,7 +351,7 @@ function love.draw()
 
     -- draw help overlay
     if love.keyboard.isDown("h") or love.keyboard.isDown("f1") then
-        lg.setColor(0, 0, 0, 0.8)
+        lg.setColor(const.helpOverlayColor)
         lg.rectangle("fill", 0, 0, winW, winH)
         lg.setColor(1, 1, 1)
         lg.printf(helpText, 20, 20, winW - 40)
