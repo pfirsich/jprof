@@ -135,6 +135,7 @@ end
 
 function love.keypressed(key)
     local ctrl = love.keyboard.isDown("lctrl") or love.keyboard.isDown("rctrl")
+
     local delta = ctrl and 100 or 1
     if key == "left" then
         if frames.current.index then -- average frames don't have .index
@@ -150,7 +151,7 @@ function love.keypressed(key)
         flameGraphType = flameGraphType == "time" and "memory" or "time"
     end
 
-    if key == "rctrl" then
+    if key == "lalt" or key == "ralt" then
         draw.graphMean = draw.nextGraphMean[draw.graphMean]
         draw.notice("graph mean: " .. draw.graphMean)
     end

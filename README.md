@@ -56,16 +56,23 @@ This makes sure that if functions that push profiling zones are used outside of 
 
 
 ### `prof.push(name, annotation)`
-The annotation is optional and appears as metadata in the viewer.
+The `annotation` is optional and appears as metadata in the viewer.
 
 ### `prof.pop(name)`
-The name is optional and is only used to check if the current zone is actually the one specified as the argument. If not, somewhere before that pop-call another zone has been pushed, but not popped.
+The `name` is optional and is only used to check if the current zone is actually the one specified as the argument. If not, somewhere before that pop-call another zone has been pushed, but not popped.
 
 ### `prof.write(filename)`
-Writes the capture file
+Writes the capture file to `filename`.
 
 ### `prof.enabled(enabled)`
-Enables capturing profiling zones (`enabled = true`) or disables it (`enabled = false`)
+Enables capturing profiling zones (`enabled = true`) or disables it (`enabled = false`). To start profiling `prof.enabled(true)` has to be called first - i.e. it is disabled by default.
+
+### `prof.connect(saveFullProfData, port, address)`
+Attempts to connect to the jprof viewer to transmit realtime profiling data. If `saveFullProfData` is `true`, jprof will still save all the profiling data, so you can save it to file later using `prof.write()`. If it is `false` (default), the data is only transmitted to the viewer and `prof.write()` will show a notice that no profiling data was saved.
+The default `port` is `1338` and the default `address` is `localhost`.
+
+### `prof.netFlush()`
+jprof does not send out every event by itself, but rather buffers them and sends them out, when this command is called. By default this is called when `prof.pop()` is called and the popped zone is `"frame"` (though only if you did `prof.connect()` earlier).
 
 ## Viewer
 Just start the löve project contained in this repository like this:
@@ -74,13 +81,24 @@ love jprof <projectIdentity> <filename>
 ```
 With `<projectIdentity>` being the [identity](https://love2d.org/wiki/love.filesystem.setIdentity) (most commonly set in [conf.lua](https://love2d.org/wiki/Config_Files)) of your project and `<filename>` being the filename of the capture file (the one that was passed to `prof.write(filename)`).
 
-### Controls
-You can seek frames with left click. If you hold shift while pressing left click the previously selected frame and the newly clicked frame will be averaged into a frame range, which is highly advised to find bottlenecks or get a general idea of memory development when you are not interested in a particular frame.
+### Realtime Profiling
+jprof also supports realtime transmission of profiling data. To use this feature, just start the viewer in listen mode:
+```console
+love jprof listen
+```
+You may also pass an additional, optional argument to specify a port. The default port used is 1338. In the program you are profiling, call `prof.connect` (see above) right after importing jprof.
 
-If a single frame is selected, you can additionally navigate using the left and right arrow key and skip 100 instead of 1 frame, if you also hold ctrl.
+*Note:* When realtime profiling is used, it is not as straightforward to keep track of the memory jprof is using itself, therefore the memory values returned by jprof will be slightly less accurate.
+
+### Controls
+You can seek frames with *left click*. If you hold *shift* while pressing *left click* the previously selected frame and the newly clicked frame will be averaged into a frame range, which is highly advised to find bottlenecks or get a general idea of memory development when you are not interested in a particular frame.
+
+If a single frame is selected, you can additionally navigate using the *left and right arrow key* and skip 100 instead of 1 frame, if you also hold *ctrl*.
 
 If a single frame is selected the position of the zones in the flame graph will correspond to their relative position in time inside the frame, for averaged frames both in memory and time mode the zones will just be centered above their parent. Their size will still hold meaning though and empty space surrounding these zones implies that there was memory consumed/freed or time spent without being enclosed by a profiling zone.
 
-With the space key you can switch between memory and time mode, which will scale and position the zones inside the flame graph according to memory memory consumption changes or time duration respectively.
+With the *space* key you can switch between memory and time mode, which will scale and position the zones inside the flame graph according to memory memory consumption changes or time duration respectively.
 
 The purple graph displays the total duration of the frames over time and the green graph the total memory consumption over time.
+
+If you press *alt* you can cycle through the means used for averaging the graph/heatmap at the bottom. The `max mean` is most useful for finding spikes, which is the default. The `arithmetic mean` is what most people think of, when they think of an average. The `harmonic mean` is less sensitive to outliers and should be even smoother than the arithmetic mean.
