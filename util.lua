@@ -66,6 +66,10 @@ function util.nodePathToStr(nodePath)
 end
 
 function util.getNodeByPath(frame, path)
+    if frame.pathCache[path] then
+        return frame.pathCache[path]
+    end
+
     local current = frame
     for _, part in ipairs(path) do
         local found = false
@@ -81,6 +85,7 @@ function util.getNodeByPath(frame, path)
             return nil
         end
     end
+    frame.pathCache[path] = current
     return current
 end
 

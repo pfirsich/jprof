@@ -1,6 +1,10 @@
 local lg = love.graphics
 local msgpack = require "MessagePack"
 
+PROF_CAPTURE = false
+prof = require("jprof")
+prof.enabled(false)
+
 local draw = require("draw")
 local getFrameAverage = require("frameAverage")
 local util = require("util")
@@ -82,7 +86,28 @@ function love.resize()
     draw.updateGraphs()
 end
 
+function love.quit()
+    prof.write("prof.mpack")
+end
+
+local function peekHeader(msgBuffer)
+    local a, b, c, d = msgBuffer:byte(1, 4)
+    return d + 0x100 * (c + 0x100 * (b + 0x100 * a))
+end
+
+local function processMessage(msgBuffer, msgLen)
+    prof.push("processMessage")
+    local headerLen = 4
+    local msg = msgBuffer:sub(headerLen+1, headerLen+msgLen)
+    local data = msgpack.unpack(msg)
+    frames.addFrames(data)
+    prof.pop("processMessage")
+end
+
 function love.update()
+    prof.enabled(true)
+    prof.push("frame")
+    prof.push("love.update")
     local x, y = love.mouse.getPosition()
     if love.mouse.isDown(1) and y > select(1, draw.getGraphCoords()) then
         local frameIndex = pickFrameIndex(x)
@@ -108,19 +133,24 @@ function love.update()
         end
     until netData == nil
 
+    prof.push("read messages")
     local headerLen = 4
+    local updateGraphs = false
     while netMsgBuffer:len() > headerLen do
-        local a, b, c, d = netMsgBuffer:byte(1, 4)
-        local len = d + 0x100 * (c + 0x100 * (b + 0x100 * a))
+        local msgLen = peekHeader(netMsgBuffer)
 
-        if netMsgBuffer:len() >= headerLen + len then
-            local msg = netMsgBuffer:sub(headerLen+1, headerLen+len)
-            netMsgBuffer = netMsgBuffer:sub(headerLen+len+1)
-            local data = msgpack.unpack(msg)
-            frames.addFrames(data)
-            draw.updateGraphs()
+        if netMsgBuffer:len() >= headerLen + msgLen then
+            processMessage(netMsgBuffer, msgLen)
+            netMsgBuffer = netMsgBuffer:sub(headerLen+msgLen+1)
+            updateGraphs = true
         else
             break
         end
     end
+    prof.pop("read messages")
+
+    if updateGraphs or love.keyboard.isDown("u") then
+        draw.updateGraphs()
+    end
+    prof.pop("love.update")
 end

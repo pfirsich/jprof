@@ -20,7 +20,8 @@ local function getNodeCount(node)
     return counter
 end
 
-local function buildGraph(data)
+local function buildNodeGraph(data)
+    prof.push("buildNodeGraph")
     local frames = {}
     local nodeStack = {}
     for _, event in ipairs(data) do
@@ -47,7 +48,7 @@ local function buildGraph(data)
                     error("Profiling data malformed: Pushed a new frame when the last one was not popped yet!")
                 end
 
-                node.index = #frames + 1
+                node.pathCache = {}
                 table.insert(frames, node)
             else
                 if not top then
@@ -70,6 +71,7 @@ local function buildGraph(data)
             table.remove(nodeStack)
         end
     end
+    prof.pop("buildNodeGraph")
     return frames
 end
 
@@ -108,22 +110,28 @@ local deltaTimes = {}
 local memUsages = {}
 
 local function updateRanges(newFrames)
+    prof.push("updateRanges")
     frames.minDeltaTime, frames.maxDeltaTime =
         updateRange(newFrames, deltaTimes, "deltaTime", 0.005, 5)
     frames.minMemUsage, frames.maxMemUsage =
         updateRange(newFrames, memUsages, "memoryEnd")
+    prof.pop("updateRanges")
 end
 
 function frames.addFrames(data)
-    local newFrames = buildGraph(data)
+    prof.push("frames.addFrames")
+    local newFrames = buildNodeGraph(data)
+
+    prof.push("extend list")
     for i, frame in ipairs(newFrames) do
         table.insert(frames, frame)
         frame.index = #frames
     end
-    if frames.current == nil then
-        frames.current = frames[1]
-    end
+    frames.current = frames.current or frames[1]
+    prof.pop("extend list")
+
     updateRanges(newFrames)
+    prof.pop("frames.addFrames")
 end
 
 return frames

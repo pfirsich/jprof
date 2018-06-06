@@ -102,8 +102,7 @@ local function getNodeString(node)
 end
 
 local function renderSubGraph(node, x, y, width, graphFunc, center)
-    --print(node.name, x, y, width)
-
+    prof.push("renderSubGraph")
     local border = 2
     local font = lg.getFont()
 
@@ -161,7 +160,7 @@ local function renderSubGraph(node, x, y, width, graphFunc, center)
             hovered = hovered or childHover
         end
     end
-
+    prof.pop("renderSubGraph")
     return hovered
 end
 
@@ -170,6 +169,7 @@ local function getFramePos(i)
 end
 
 local function buildGraph(graph, key, valueOffset, valueScale, mean, path)
+    prof.push("buildGraph")
     local x, w = 0, lg.getWidth()
     local y, h = draw.getGraphCoords()
 
@@ -191,11 +191,14 @@ local function buildGraph(graph, key, valueOffset, valueScale, mean, path)
         graph[p*2-1+0] = x + (p - 1) / (numPoints - 1) * w
         graph[p*2-1+1] = y + (1 - (mean.mean(accum, n) or 0)) * h
     end
+    prof.pop("buildGraph")
 end
 
 function draw.updateGraphs()
+    prof.push("draw.updateGraphs")
     buildGraph(graphs.time, "deltaTime", 0, frames.maxDeltaTime, util.mean[draw.graphMean], rootPath)
     buildGraph(graphs.mem, "memoryEnd", 0, frames.maxMemUsage, util.mean[draw.graphMean], rootPath)
+    prof.pop("draw.updateGraphs")
 end
 
 function draw.getGraphCoords()
@@ -229,24 +232,24 @@ function draw.popRootPath(path)
 end
 
 function love.draw()
+    prof.push("love.draw")
     local winW, winH = lg.getDimensions()
 
     if #frames < 1 then
         lg.setFont(fonts.mode)
         lg.print("Waiting for frames..", 5, 5)
+
+        prof.pop("love.draw")
+        prof.pop("frame")
+        prof.enabled(false)
         return
     end
 
     local mean = util.mean[draw.graphMean]
 
     -- render frame overview at the bottom
-    local spacing = 1
-    if winW / #frames < 3 then
-        spacing = 0
-    end
-    local width = (winW - spacing) / #frames - spacing
+    prof.push("heatmap")
     local vMargin = 5
-
     local numLines = math.min(#frames, winW)
     local lineWidth = winW / numLines
     local frameIndex = 1
@@ -269,9 +272,11 @@ function love.draw()
         lg.setColor(c, c, c)
         lg.rectangle("fill", x, y, lineWidth, const.frameOverviewHeight - vMargin*2)
     end
+    prof.pop("heatmap")
 
     local graphY, graphHeight = draw.getGraphCoords()
 
+    -- draw current frame/selection
     if frames.current.index then
         lg.setColor(const.frameCursorColor)
         local x = getFramePos(frames.current.index)
@@ -302,6 +307,7 @@ function love.draw()
         infoLine = ("frame %d: %.4f ms, %.3f KB"):format(frame, duration, memory)
     end
 
+    -- draw ticks
     local totalDur = frames[#frames].endTime - frames[1].startTime
     local tickInterval = 10
     local numTicks = math.floor(totalDur / tickInterval)
@@ -340,6 +346,7 @@ function love.draw()
     lg.print(("memory usage (max: %d KB)"):format(frames.maxMemUsage), 5, graphY)
 
     -- render flame graph for current frame
+    prof.push("flame graph")
     lg.setFont(fonts.mode)
     lg.print("graph type: " .. draw.flameGraphType, 5, 5)
     lg.setFont(fonts.node)
@@ -362,6 +369,7 @@ function love.draw()
         infoLine = ("This frame does not have a node with path '%s'"):format(
             util.nodePathToStr(rootPath))
     end
+    prof.pop("flame graph")
 
     if infoLine then
         lg.print(infoLine, 5, graphY - const.infoLineHeight + 5)
@@ -383,6 +391,10 @@ function love.draw()
         lg.setColor(1, 1, 1)
         lg.printf(helpText, 20, 20, winW - 40)
     end
+
+    prof.pop("love.draw")
+    prof.pop("frame")
+    prof.enabled(false)
 end
 
 return draw
