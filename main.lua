@@ -14,27 +14,32 @@ local frames = require("frames")
 local netMsgBuffer = ""
 local netChannel = love.thread.newChannel()
 
+local function readFileData(fileData)
+    frames.addFrames(msgpack.unpack(fileData))
+    draw.updateGraphs()
+
+    if #frames == 0 then
+        error("Frame count in the capture is zero!")
+    end
+end
+
 function love.load(arg)
-    local identity, filename = arg[1], arg[2]
-    if identity == "listen" then
+    if arg[1] == "listen" then
         print("Waiting for connection...")
         local netThread = love.thread.newThread("networkThread.lua")
         netThread:start(netChannel, arg[2] and tonumber(arg[2]) or const.defaultPort)
-    elseif not identity or not filename then
-        print("Usage: love jprof <identity> <filename>\nor: love jprof listen [port]")
+    elseif arg[1] and not arg[2] then
+        local file, msg = io.open(arg[1], "rb")
+        local fileData = assert(file:read("*a"), "Could not read file.")
+        readFileData(fileData)
+    elseif arg[1] and arg[2] then
+        love.filesystem.setIdentity(arg[1])
+        local fileData, msg = assert(love.filesystem.read(arg[2]))
+        readFileData(fileData)
+    else
+        print("Usage: love jprof <identity> <filename>\nor: love jprof <path>\nor: love jprof listen [port]")
         love.event.quit()
         return
-    else
-        love.filesystem.setIdentity(identity)
-        local fileData, msg = love.filesystem.read(filename)
-        assert(fileData, msg)
-        local data = msgpack.unpack(fileData)
-        frames.addFrames(data)
-        draw.updateGraphs()
-
-        if #frames == 0 then
-            error("Frame count in the capture is zero!")
-        end
     end
 
     -- some löve things
