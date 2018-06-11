@@ -24,7 +24,7 @@ function bar()
 end
 ```
 
-Then calling `prof.write("myfile.prof")` will save a file to your applications save directory using [fperrad/lua-MessagePack](https://github.com/fperrad/lua-MessagePack), which you can analyze in the viewer:
+These are then saved to a file in your application's save directory using [fperrad/lua-MessagePack](https://github.com/fperrad/lua-MessagePack), which you can analyze in the viewer:
 
 ![Time mode](https://user-images.githubusercontent.com/2214632/32568512-c2a04ec8-c4be-11e7-8964-cda8d96f4e9e.png)
 
@@ -48,13 +48,17 @@ function love.draw()
     -- push and pop additional zones here
     prof.pop("frame")
 end
+
+function love.quit()
+    prof.write("prof.mpack")
+end
 ```
 
 If `PROF_CAPTURE` evaluates to `false` when jprof is imported, all profiling functions are replaced with `function() end` i.e. do nothing, so you can leave them in even for release builds.
 
 Also all other zones have to be pushed inside the `"frame"` zone and whenever `prof.push` or `prof.pop` are called outside of a frame, the viewer will not know how to interpret that data (and error). So make sure capturing is disabled when functions are called that push zones outside of the `"frame"` zone.
 
-For example if you are using a fixed timestep loop (update and draw frames are not always 1 for 1), you probably want to do something like this instead (implementation of the fixed timestep loop not included):
+For example if you are using a fixed timestep loop (update and draw frames are not always 1 for 1), you probably want to do something like this instead (excerpt/sketch):
 
 ```lua
 PROFILE_DRAW = false
