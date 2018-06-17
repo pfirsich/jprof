@@ -18,8 +18,11 @@ local function addNode(intoNode, node)
                 name = child.name,
                 deltaTime = 0,
                 memoryDelta = 0,
+                parent = intoNode,
                 children = {},
             }
+            intoChild.path = {unpack(intoNode.path)}
+            table.insert(intoChild.path, {intoChild.name, 1})
             table.insert(intoNode.children, intoChild)
         end
         addNode(intoChild, child)
@@ -41,7 +44,10 @@ local function getFrameAverage(frames, fromFrame, toFrame)
         name = "frame",
         deltaTime = 0,
         memoryDelta = 0,
+        parent = nil,
         children = {},
+        path = {},
+        pathCache = {},
     }
 
     for i = fromFrame, toFrame do
