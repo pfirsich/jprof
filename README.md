@@ -86,6 +86,9 @@ The `annotation` is optional and appears as metadata in the viewer.
 ### `prof.pop(name)`
 The `name` is optional and is only used to check if the current zone is actually the one specified as the argument. If not, somewhere before that pop-call another zone has been pushed, but not popped.
 
+### `prof.popAll()`
+Pops all zones from the stack. You should almost never use this function, except if you want to terminate the program while having a number of zones on the zone stack (i.e. just before calling `prof.write()`) and cleaning up properly would be too bothersome.
+
 ### `prof.write(filename)`
 Writes the capture file to `filename`.
 

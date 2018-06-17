@@ -108,6 +108,12 @@ if PROF_CAPTURE then
         end
     end
 
+    function profiler.popAll()
+        for i = #zoneStack, 1, -1 do
+            profiler.pop(zoneStack[i])
+        end
+    end
+
     function profiler.write(filename)
         assert(#zoneStack == 0, "(jprof) Zone stack is not empty")
 
