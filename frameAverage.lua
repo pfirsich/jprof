@@ -1,39 +1,33 @@
-local function getChildByName(node, name)
-    for _, child in ipairs(node.children) do
-        if child.name == name then
-            return child
-        end
-    end
-    return nil
-end
+local util = require("util")
 
 local function addNode(intoNode, node)
     intoNode.deltaTime = intoNode.deltaTime + node.deltaTime
     intoNode.memoryDelta = intoNode.memoryDelta + node.memoryDelta
+    intoNode.samples = intoNode.samples + 1
 
     for _, child in ipairs(node.children) do
-        local intoChild = getChildByName(intoNode, child.name)
+        local intoChild = util.getChildByPath(intoNode, child.path[#child.path])
         if not intoChild then
             intoChild = {
                 name = child.name,
                 deltaTime = 0,
                 memoryDelta = 0,
                 parent = intoNode,
+                samples = 0,
                 children = {},
             }
-            intoChild.path = {unpack(intoNode.path)}
-            table.insert(intoChild.path, {intoChild.name, 1})
+            intoChild.path = {unpack(child.path)}
             table.insert(intoNode.children, intoChild)
         end
         addNode(intoChild, child)
     end
 end
 
-local function rescaleNode(node, factor)
-    node.deltaTime = node.deltaTime * factor
-    node.memoryDelta = node.memoryDelta * factor
+local function normalizeNode(node)
+    node.deltaTime = node.deltaTime / node.samples
+    node.memoryDelta = node.memoryDelta / node.samples
     for _, child in ipairs(node.children) do
-        rescaleNode(child, factor)
+        normalizeNode(child)
     end
 end
 
@@ -47,6 +41,7 @@ local function getFrameAverage(frames, fromFrame, toFrame)
         parent = nil,
         children = {},
         path = {},
+        samples = 0,
         pathCache = {},
     }
 
@@ -54,7 +49,7 @@ local function getFrameAverage(frames, fromFrame, toFrame)
         addNode(frame, frames[i])
     end
 
-    rescaleNode(frame, 1/(frame.toIndex - frame.fromIndex + 1))
+    normalizeNode(frame)
 
     return frame
 end

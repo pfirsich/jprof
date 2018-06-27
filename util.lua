@@ -65,6 +65,17 @@ function util.nodePathToStr(nodePath)
     return str:len() > 0 and str or "/"
 end
 
+-- path should only be the last part of the path
+function util.getChildByPath(node, path)
+    for _, child in ipairs(node.children) do
+        local childPart = child.path[#child.path]
+        if path[1] == childPart[1] and path[2] == childPart[2] then
+            return child
+        end
+    end
+    return nil
+end
+
 function util.getNodeByPath(frame, path)
     if frame.pathCache[path] then
         return frame.pathCache[path]
@@ -72,16 +83,8 @@ function util.getNodeByPath(frame, path)
 
     local current = frame
     for _, part in ipairs(path) do
-        local found = false
-        for _, child in ipairs(current.children) do
-            local childPart = child.path[#child.path]
-            if part[1] == childPart[1] and part[2] == childPart[2] then
-                current = child
-                found = true
-                break
-            end
-        end
-        if not found then
+        current = util.getChildByPath(current, part)
+        if not current then
             return nil
         end
     end
