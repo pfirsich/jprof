@@ -78,7 +78,8 @@ function love.keypressed(key)
 end
 
 local function pickFrameIndex(x)
-    return math.floor(x / lg.getWidth() * #frames) + 1
+    local index = math.floor(x / lg.getWidth() * (#frames - 1)) + 1
+    return math.min(math.max(index, 1), #frames)
 end
 
 function love.mousepressed(x, y, button)
