@@ -13,6 +13,13 @@ draw.nextGraphMean = {
     harmonic = "max",
 }
 
+draw.graphView = "both"
+draw.nextGraphView = {
+  both = "time",
+  time = "memory",
+  memory = "both",
+}
+
 draw.flameGraphType = "time" -- so far: "time" or "memory"
 
 local rootPath = {}
@@ -50,6 +57,7 @@ do
         L, "Space:  ", R, "Switch between 'time' and 'memory' mode.\n\n",
 
         L, "Alt:  ", R, "Cycle through graph averaging modes.\n\n",
+        L, "v:  ", R, "Cycle through graph views.\n\n",
     }
 end
 
@@ -318,13 +326,17 @@ function love.draw()
     end
 
     if #frames > 1 then
-        lg.setLineWidth(1)
-        lg.setColor(const.timeGraphColor)
-        lg.line(graphs.time)
+        if draw.graphView == "time" or draw.graphView == "both" then
+            lg.setLineWidth(1)
+            lg.setColor(const.timeGraphColor)
+            lg.line(graphs.time)
+        end
 
-        lg.setLineWidth(2)
-        lg.setColor(const.memGraphColor)
-        lg.line(graphs.mem)
+        if draw.graphView == "memory" or draw.graphView == "both" then
+            lg.setLineWidth(2)
+            lg.setColor(const.memGraphColor)
+            lg.line(graphs.mem)
+        end
     end
 
     lg.setColor(const.textColor)
