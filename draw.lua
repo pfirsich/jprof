@@ -367,7 +367,7 @@ function love.draw()
     if node then
         local hovered = renderSubGraph(node, 0, graphY - const.infoLineHeight, winW,
             flameGraphFuncs[draw.flameGraphType],
-            flameGraphType == "memory" or not frames.current.index)
+            draw.flameGraphType == "memory" or not frames.current.index)
         if hovered then
             infoLine = hovered.name .. " " .. getNodeString(hovered)
 
