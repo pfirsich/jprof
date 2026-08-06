@@ -80,6 +80,10 @@ function love.keypressed(key)
       draw.graphView = draw.nextGraphView[draw.graphView]
       draw.notice("graph show: " .. draw.graphView)
     end
+
+    if key == "q" then
+      love.event.push("quit")
+    end
 end
 
 local function pickFrameIndex(x)

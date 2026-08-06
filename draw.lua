@@ -58,6 +58,8 @@ do
 
         L, "Alt:  ", R, "Cycle through graph averaging modes.\n\n",
         L, "v:  ", R, "Cycle through graph views.\n\n",
+
+        L, "q:  ", R, "Quit.\n\n"
     }
 end
 
